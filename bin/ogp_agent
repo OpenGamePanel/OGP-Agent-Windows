@@ -11,6 +11,10 @@ AGENTDIR="/OGP"
 BASH_PREFS_CONF="$AGENTDIR/Cfg/bash_prefs.cfg"
 chmod -Rf 770 $AGENTDIR
 find $AGENTDIR -type f -print | xargs chmod ug=rw 
+if [ -d "$AGENTDIR/steamcmd" ]; then
+	find $AGENTDIR/steamcmd -iname \*.dll -exec chmod +x {} \;
+	find $AGENTDIR/steamcmd -iname \*.exe -exec chmod +x {} \;
+fi
 chmod +x $AGENTDIR/ogp_agent.pl &> /dev/null
 chmod +x /usr/bin/ogp_agent &> /dev/null
 chmod +x /usr/bin/ogp_install &> /dev/null
