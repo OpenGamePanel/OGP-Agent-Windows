@@ -15,6 +15,9 @@ if [ -d "$AGENTDIR/steamcmd" ]; then
 	find $AGENTDIR/steamcmd -iname \*.dll -exec chmod +x {} \;
 	find $AGENTDIR/steamcmd -iname \*.exe -exec chmod +x {} \;
 fi
+if [ -d "$AGENTDIR/screenlogs" ]; then
+	chmod -Rf ugo=rw $AGENTDIR/screenlogs
+fi
 chmod +x $AGENTDIR/ogp_agent.pl &> /dev/null
 chmod +x /usr/bin/ogp_agent &> /dev/null
 chmod +x /usr/bin/ogp_install &> /dev/null
