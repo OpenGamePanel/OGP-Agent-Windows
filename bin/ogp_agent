@@ -19,6 +19,7 @@ if [ -d "$AGENTDIR/screenlogs" ]; then
 	chmod -Rf ug=rwx $AGENTDIR/screenlogs
 fi
 chmod +x $AGENTDIR/ogp_agent.pl &> /dev/null
+chmod +x $AGENTDIR/agent_conf.sh &> /dev/null
 chmod +x /usr/bin/ogp_agent &> /dev/null
 chmod +x /usr/bin/ogp_install &> /dev/null
 
@@ -185,6 +186,7 @@ update() {
 								fi
 								echo "Fixing permissions..."
 								chmod +x $AGENTDIR/ogp_agent.pl &> /dev/null
+								chmod +x $AGENTDIR/agent_conf.sh &> /dev/null
 								chmod +x /usr/bin/ogp_agent &> /dev/null
 								chmod +x /usr/bin/ogp_install &> /dev/null
 								echo "Cleaning up..."
