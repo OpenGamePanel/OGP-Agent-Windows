@@ -149,32 +149,33 @@ checkDepends() {
 }
 
 update() {
-	# Run the git update
+	# Run the update
 	if test -n "$AUTO_UPDATE"; then
-		if [ -z "$CURL" -o -z "$UNZIP" -o -z "$GIT" ]; then
+		if [ -z "$CURL" -o -z "$UNZIP" ]; then
 			checkDepends
 		fi
-		if [ -f "$CURL" -a -x "$CURL" ] && [ -f "$UNZIP" -a -x "$UNZIP" ] && [ -f "$GIT" -a -x "$GIT" ]; then
+		if [ -f "$CURL" -a -x "$CURL" ] && [ -f "$UNZIP" -a -x "$UNZIP" ]; then
 			cd $AGENTDIR
 			if [ ! -d tmp ]; then
 				mkdir tmp
 			fi
 			cd tmp
-			REPONAME=OGP-Agent-Windows
+			REPONAME=OGP-Agent-Linux
 			REVISION=`git ls-remote --heads https://github.com/OpenGamePanel/${REPONAME}.git | grep -owE "^[^?\s]+"`
-			curl -Os https://raw.githubusercontent.com/OpenGamePanel/${REPONAME}/${REVISION}/bin/ogp_agent
-			diff ./ogp_agent /bin/ogp_agent &>/dev/null
+			curl -Os https://raw.githubusercontent.com/OpenGamePanel/${REPONAME}/${REVISION}/ogp_agent_run
+			diff ./ogp_agent_run $AGENTDIR/ogp_agent_run &>/dev/null
 			if test $? -ne 0; then
-				cp -f ./ogp_agent /bin/ogp_agent &> /dev/null
+				cp -f ./ogp_agent_run $AGENTDIR/ogp_agent_run &> /dev/null
 				if test $? -eq 0; then
-					cd /bin
-					chmod ugo+x ogp_agent 2>/dev/null
+					cd $AGENTDIR
+					chmod ug+x ogp_agent_run 2>/dev/null
 					echo "`date`: The agent updater has been changed, relaunching..."
 					rm -Rf tmp
-					/bin/ogp_agent
+					./ogp_agent_run
 					exit 0
 				fi
 			fi
+			cd $AGENTDIR
 			CURRENT=$(cat $AGENTDIR/Cfg/Config.pm | grep version | grep -Eo '[0-9a-f]{40}')
 			if [ "$CURRENT" == "$REVISION" ]; then
 				echo "The agent is up to date."
@@ -194,11 +195,8 @@ update() {
 							rm -Rf ${REPONAME}-* &> /dev/null
 						else
 							cd ${REPONAME}-${REVISION}
-							cp -avf OGP/* $AGENTDIR/. &> /dev/null
-							CP_APP_RET=$?
-							cp -avf bin/* /usr/bin/. &> /dev/null
-							CP_BIN_RET=$?
-							if [ $CP_APP_RET -ne 0 -o $CP_BIN_RET -ne 0 ]; then
+							cp -avf Schedule Time FastDownload php-query ogp_agent.pl ogp_screenrc ogp_agent_run agent_conf.sh $AGENTDIR &> /dev/null
+							if test $? -ne 0; then
 								echo "`date`: The agent files cannot be overwritten."
 								echo "Cleaning up..."
 								cd ..
@@ -212,6 +210,7 @@ update() {
 								chmod +x $AGENTDIR/ogp_agent.pl &> /dev/null
 								chmod +x $AGENTDIR/agent_conf.sh &> /dev/null
 								chmod +x /usr/bin/ogp_agent &> /dev/null
+								chmod +x /usr/bin/ogp_install &> /dev/null
 								echo "Cleaning up..."
 								cd ..
 								rm -Rf ${REPONAME}-* &> /dev/null
@@ -225,12 +224,10 @@ update() {
 					echo "Try again later."
 				fi
 			fi
-			
 		else
 			echo "Update failed."
 		fi
 	fi
-	
 	return 0
 }
 	
