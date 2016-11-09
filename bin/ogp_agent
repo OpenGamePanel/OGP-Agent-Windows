@@ -140,36 +140,60 @@ checkDepends() {
 	else
 		echo "INFO: Located unzip: $UNZIP"
 	fi
+	GIT=`which git 2>/dev/null`
+	if test "$?" -gt 0; then
+		echo "WARNING: Failed to locate git binary."
+	else
+		echo "INFO: Located git: $GIT"
+	fi
 }
 
 update() {
-	# Run the subversion update
-	expires=$(LC_ALL=en_US.utf8 date --date='@'`expr $( expr 365 \* 24 \* 60 \* 60 \* 10 ) + $( date +"%s" )`'' +"%a, %d-%b-%Y %H:%M:%S GMT")
+	# Run the git update
 	if test -n "$AUTO_UPDATE"; then
-		if [ -z "$CURL" -o -z "$UNZIP" ]; then
+		if [ -z "$CURL" -o -z "$UNZIP" -o -z "$GIT" ]; then
 			checkDepends
 		fi
-		if [ -f "$CURL" -a -x "$CURL" ] && [ -f "$UNZIP" -a -x "$UNZIP" ]; then
-			CURRENT=$(cat $AGENTDIR/Cfg/Config.pm | grep version | egrep -o "[0-9]*")
-			REVISION=$(curl -L -b "FreedomCookie=true;path=/;expires=$expires" -s https://sourceforge.net/projects/ogpextras/rss?path=/Alternative-Snapshot\&limit=3 | grep -m 1 "title.*hldstart-code-" | grep -o -P '(?<=hldstart-code-).*(?=.zip)')
+		if [ -f "$CURL" -a -x "$CURL" ] && [ -f "$UNZIP" -a -x "$UNZIP" ] && [ -f "$GIT" -a -x "$GIT" ]; then
+			cd $AGENTDIR
+			if [ ! -d tmp ]; then
+				mkdir tmp
+			fi
+			cd tmp
+			REPONAME=OGP-Agent-Windows
+			REVISION=`git ls-remote --heads https://github.com/OpenGamePanel/${REPONAME}.git | grep -owE "^[^?\s]+"`
+			curl -Os https://raw.githubusercontent.com/OpenGamePanel/${REPONAME}/${REVISION}/bin/ogp_agent
+			diff ./ogp_agent /bin/ogp_agent &>/dev/null
+			if test $? -ne 0; then
+				cp -f ./ogp_agent /bin/ogp_agent &> /dev/null
+				if test $? -eq 0; then
+					cd /bin
+					chmod ugo+x ogp_agent 2>/dev/null
+					echo "`date`: The agent updater has been changed, relaunching..."
+					rm -Rf tmp
+					/bin/ogp_agent
+					exit 0
+				fi
+			fi
+			CURRENT=$(cat $AGENTDIR/Cfg/Config.pm | grep version | grep -Eo '[0-9a-f]{40}')
 			if [ "$CURRENT" == "$REVISION" ]; then
 				echo "The agent is up to date."
 			else
-				URL=https://${MIRROR}.dl.sourceforge.net/project/ogpextras/Alternative-Snapshot/win-agent-${REVISION}.zip
-				HEAD=$(curl -L --insecure -b "FreedomCookie=true;path=/;expires=$expires" -Os --head -w "%{http_code}" "$URL")
+				URL=https://github.com/OpenGamePanel/${REPONAME}/archive/${REVISION}.zip
+				HEAD=$(curl -L -Os --head -w "%{http_code}" "$URL")
 				if [ "$HEAD" == "200" ]; then
 					echo "Updating agent using curl."
-					curl -L --insecure -b "FreedomCookie=true;path=/;expires=$expires" -Os $URL
+					curl -L -Os $URL
 					if test $? -ne 0; then
 						echo "`date`: curl failed to download the update package."
 					else
-						unzip -q win-agent-${REVISION}.zip
+						unzip -oq "${REVISION}.zip"
 						if test $? -ne 0; then
 							echo "`date`: Unable to unzip the update package."
 							echo "cleaning up..."
-							rm -f win-agent-* &> /dev/null
-						else				
-							cd win-agent-${REVISION}
+							rm -Rf ${REPONAME}-* &> /dev/null
+						else
+							cd ${REPONAME}-${REVISION}
 							cp -avf OGP/* $AGENTDIR/. &> /dev/null
 							CP_APP_RET=$?
 							cp -avf bin/* /usr/bin/. &> /dev/null
@@ -178,7 +202,7 @@ update() {
 								echo "`date`: The agent files cannot be overwritten."
 								echo "Cleaning up..."
 								cd ..
-								rm -Rf win-agent-* &> /dev/null
+								rm -Rf ${REPONAME}-* &> /dev/null
 								echo "Agent update failed."
 							else
 								if test ! -e "$AGENTDIR/Cfg/Preferences.pm"; then
@@ -188,11 +212,10 @@ update() {
 								chmod +x $AGENTDIR/ogp_agent.pl &> /dev/null
 								chmod +x $AGENTDIR/agent_conf.sh &> /dev/null
 								chmod +x /usr/bin/ogp_agent &> /dev/null
-								chmod +x /usr/bin/ogp_install &> /dev/null
 								echo "Cleaning up..."
 								cd ..
-								rm -Rf win-agent-* &> /dev/null
-								sed -i "s/version.*/version => 'v${REVISION}',/" $AGENTDIR/Cfg/Config.pm
+								rm -Rf ${REPONAME}-* &> /dev/null
+								sed -i "s/version.*/version => '${REVISION}',/" $AGENTDIR/Cfg/Config.pm
 								echo "Agent updated successfully."
 							fi
 						fi
