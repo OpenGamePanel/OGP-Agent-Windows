@@ -58,16 +58,8 @@ then
 	else
 		FTP_PASV_STRING=""
 	fi
-	
-	if [ -z "$sf_update_mirror" ]
-	then
-		MIRROR="master"
-	else
-		MIRROR=$sf_update_mirror
-	fi
 else
 	AUTO_UPDATE="yes"
-	MIRROR="master"
 	RUN_PUREFTPD="yes"
 	FTP_IP="0.0.0.0"
 	FTP_PORT="21"

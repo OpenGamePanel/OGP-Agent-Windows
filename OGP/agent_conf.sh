@@ -264,66 +264,6 @@ then
 		fi
 		echo "You need to type 'yes', 'no' or leave empty for default value [yes]."
 	done
-
-	echo;
-	echo "What mirror you want to use for updating the agent?: "
-	echo;
-	echo "1  - SourceForge, Inc. (Chicago, Illinois, US)"
-	echo "2  - AARNet (Melbourne, Australia, AU)"
-	echo "3  - CityLan (Moscow, Russian Federation, RU)"
-	echo "4  - Free France (Paris, France, FR)"
-	echo "5  - garr.it (Ancona, Italy, IT)"
-	echo "6  - HEAnet (Ireland, IE)"
-	echo "7  - HiVelocity (Tampa, FL, US)"
-	echo "8  - Internode (Adelaide, Australia, AU)"
-	echo "9  - Japan Advanced Institute of Science and Technology (Nomi, Japan, JP)"
-	echo "10 - kaz.kz (Almaty, Kazakhstan, KZ)"
-	echo "11 - University of Kent (Canterbury, United Kingdom, GB)"
-	echo "12 - NetCologne (K&ouml;ln, Germany, DE)"
-	echo "13 - Optimate-Server (Germany, DE)"
-	echo "14 - Softlayer (Dallas, TX, US)"
-	echo "15 - SURFnet (Zurich, Switzerland, CH)"
-	echo "16 - SWITCH (Zurich, Switzerland, CH)"
-	echo "17 - Centro de Computacao Cientifica e Software Livre (Curitiba, Brazil, BR)"
-	read setmirror
-	case ${setmirror} in
-		1) mirror="master"
-		;;
-		2) mirror="aarnet"
-		;;
-		3) mirror="citylan"
-		;;
-		4) mirror="freefr"
-		;;
-		5) mirror="garr"
-		;;
-		6) mirror="heanet"
-		;;
-		7) mirror="hivelocity"
-		;;
-		8) mirror="internode"
-		;;
-		9) mirror="jaist"
-		;;
-		10) mirror="kaz"
-		;;
-		11) mirror="kent"
-		;;
-		12) mirror="netcologne"
-		;;
-		13) mirror="optimate"
-		;;
-		14) mirror="softlayer-dal"
-		;;
-		15) mirror="surfnet"
-		;;
-		16) mirror="switch"
-		;;
-		17) mirror="ufpr"
-		;;
-		*) mirror="master"
-		;;
-	esac
 	
 	echo;
 	while [ 1 ]
@@ -584,7 +524,7 @@ then
 					echo "If you have installed the FileZilla Server,"
 					echo "the agent can use it to create FTP accounts instead of using Pure-FTPd."
 					echo "Would you like to configure this agent to use it?"
-					echo -n "(yes|no) [Default no]: "
+					echo -n "(yes|no) [Default yes]: "
 					read FZ
 					if [ "${FZ}" == "yes" -o "${FZ}" == "no" -o -z "${FZ}" ]
 					then
@@ -594,7 +534,7 @@ then
 				done
 			fi
 			
-			if [ "${FZ}" == "yes" ]; then
+			if [ "${FZ}" == "yes" ] || [ -z "${FZ}" ]; then
 				ftpMethod="FZ"
 				PF=$(cmd /Q /C echo %PROGRAMFILES\(X86\)% | sed 's/\r$//')
 				if [ "X${PF}" == "X" ];then PF=$(cmd /Q /C echo %PROGRAMFILES% | sed 's/\r$//'); fi
@@ -706,7 +646,7 @@ then
 
 	echo "Writing bash script preferences file - $bashprefsfile"
 	
-	echo -e "agent_auto_update=${autoUpdate}\nsf_update_mirror=${mirror}\nrun_pureftpd=${run_pureftpd}\nftp_port=${ftp_port}\nftp_ip=${ftp_ip}\nftp_pasv_range=${ftp_pasv_range}" > $bashprefsfile
+	echo -e "agent_auto_update=${autoUpdate}\nrun_pureftpd=${run_pureftpd}\nftp_port=${ftp_port}\nftp_ip=${ftp_ip}\nftp_pasv_range=${ftp_pasv_range}" > $bashprefsfile
 	
 	if [ $? != 0 ]
 	then
