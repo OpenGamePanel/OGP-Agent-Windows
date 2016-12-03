@@ -147,7 +147,7 @@ update() {
 			fi
 			cd tmp
 			REPONAME=OGP-Agent-Windows
-			REVISION=`curl -s https://github.com/OpenGamePanel/${REPONAME}/commits/master.atom | egrep -o "([a-f0-9]{40})" | awk 'NR==1{print $1}'`
+			REVISION=`curl -Lks https://github.com/OpenGamePanel/${REPONAME}/commits/master.atom | grep -Eo "([a-f0-9]{40})" | head -n 1`
 			curl -Os https://raw.githubusercontent.com/OpenGamePanel/${REPONAME}/${REVISION}/bin/ogp_agent
 			diff ./ogp_agent /bin/ogp_agent &>/dev/null
 			if test $? -ne 0; then
