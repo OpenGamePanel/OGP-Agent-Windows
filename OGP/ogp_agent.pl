@@ -211,7 +211,7 @@ elsif ($no_startups != 1)
 			my (
 				$home_id,   $home_path,   $server_exe,
 				$run_dir,   $startup_cmd, $server_port,
-				$server_ip, $cpu,		 $nice
+				$server_ip, $cpu, $nice, $preStart, $envVars
 			   ) = split(',', $_);
 			
 			if (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) ==
@@ -226,7 +226,7 @@ elsif ($no_startups != 1)
 			universal_start_without_decrypt(
 										 $home_id,   $home_path,   $server_exe,
 										 $run_dir,   $startup_cmd, $server_port,
-										 $server_ip, $cpu,		 $nice
+										 $server_ip, $cpu, $nice, $preStart, $envVars
 										   );
 		}
 		close(STARTFILE);
@@ -429,7 +429,7 @@ sub create_screen_cmd
 
 sub create_screen_cmd_loop
 {
-	my ($screen_id, $exec_cmd, $priority, $affinity) = @_;
+	my ($screen_id, $exec_cmd, $priority, $affinity, $envVars) = @_;
 	my $server_start_batfile = $screen_id . "_startup_scr.bat";
 	
 	$exec_cmd = replace_OGP_Vars($screen_id, $exec_cmd);
@@ -437,8 +437,13 @@ sub create_screen_cmd_loop
 	# Create batch file that will launch the process and store PID which will be used for killing later
 	open (SERV_START_BAT_SCRIPT, '>', $server_start_batfile);
 	
-	my $batch_server_command = ":TOP" . "\r\n"
-	. "set starttime=%time%" . "\r\n"
+	my $batch_server_command = ":TOP" . "\r\n";
+	
+	if(defined $envVars && $envVars ne ""){
+		$batch_server_command .= $envVars;
+	}
+	
+	$batch_server_command .= "set starttime=%time%" . "\r\n"
 	. "start " . $priority . " " . $affinity . " /wait " . $exec_cmd . "\r\n"
 	. "set endtime=%time%" . "\r\n" 
 	. "set /a secs=%endtime:~6,2%" . "\r\n" 
@@ -478,6 +483,15 @@ sub replace_OGP_Vars{
 	}
 	
 	return $exec_cmd;
+}
+
+sub replace_OGP_Env_Vars{
+	# This function replaces constants from environment variables set in the XML
+	my ($homeid, $homepath, $strToReplace) = @_;
+
+	$strToReplace =~ s/{OGP_HOME_DIR}/$homepath/g;
+	
+	return $strToReplace;
 }
 
 sub encode_list
@@ -624,7 +638,7 @@ sub universal_start_without_decrypt
 {
 	my (
 		$home_id, $home_path, $server_exe, $run_dir, $startup_cmd,
-		$server_port, $server_ip, $cpu,	$nice
+		$server_port, $server_ip, $cpu,	$nice, $preStart, $envVars
 	   ) = @_;
 	   
 	if (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1)
@@ -655,12 +669,42 @@ sub universal_start_without_decrypt
 			return -13;
 		}
 	}
+	
+	if(defined $preStart && $preStart ne ""){
+		# Get it in the format that the startup file can use
+		$preStart = startup_comma_format_to_multiline($preStart);
+	}else{
+		$preStart = "";
+	}
+	
+	if(defined $envVars && $envVars ne ""){
+		# Get it in the format that the startup file can use
+		$envVars = startup_comma_format_to_multiline($envVars);	
+		
+		# Replace variables in the envvars if they exist
+		my @prestartenvvars = split /[\r\n]+/, $envVars;
+		my $envVarStr = "";
+		foreach my $line (@prestartenvvars) {
+			$line = replace_OGP_Env_Vars($home_id, $home_path, $line);
+			if($line ne ""){
+				logger "Configuring environment variable: $line";
+				$envVarStr .= "$line\n";
+			}
+		}
+			
+		if(defined $envVarStr && $envVarStr ne ""){
+			$envVars = $envVarStr;
+		}
+	}else{
+		$envVars = "";
+	}
 
 	my $screen_id = create_screen_id(SCREEN_TYPE_HOME, $home_id);
 
 	# Create affinity and priority strings
 	my $priority;
 	my $affinity;
+	my $run_before_start;
 	
 	if($nice ne "NA")
 	{
@@ -759,7 +803,24 @@ sub universal_start_without_decrypt
 	logger
 	  "Startup command [ $clean_cli_bin ] will be executed in dir $game_binary_dir.";
 
+	# Run before start script and set environment variables which will affect create_screen_cmd only... loop already has the envvars as well
+	$run_before_start = run_before_start_commands($home_id, $home_path, $preStart, $envVars);
+
 	system($cli_bin);
+
+	if(defined $preStart && $preStart ne ""){
+		# Get it in the format that the startup file can use
+		$preStart = multiline_to_startup_comma_format($preStart);
+	}else{
+		$preStart = "";
+	}
+	
+	if(defined $envVars && $envVars ne ""){		
+		# Get it in the format that the startup file can use
+		$envVars = multiline_to_startup_comma_format($envVars);
+	}else{
+		$envVars = "";
+	}
 
 	# Create startup file for the server.
 	my $startup_file =
@@ -1449,6 +1510,63 @@ sub start_file_download
 	}
 }
 
+sub run_before_start_commands
+{
+	#return "Bad Encryption Key" unless(decrypt_param(pop(@_)) eq "Encryption checking OK");
+	my ($server_id, $homedir, $beforestartcmd, $envVars) = @_;
+	
+	if ($homedir ne "" && $server_id ne ""){
+		# Run any prestart scripts
+		if (defined $beforestartcmd && $beforestartcmd ne "")
+		{		
+			logger "Running pre-start XML commands before starting server ID $server_id with a home directory of $homedir.";
+			my @prestartcmdlines = split /[\r\n]+/, $beforestartcmd;
+			my $prestartcmdfile = $homedir."/".'prestart_ogp.bat';
+			open  FILE, '>', $prestartcmdfile;
+			print FILE "cd \"$homedir\"\r\n";
+			foreach my $line (@prestartcmdlines) {
+				print FILE "$line\r\n";
+			}
+			print FILE "del \"$prestartcmdfile\"\r\n";
+			close FILE;
+			chmod 0755, $prestartcmdfile;
+			system("cmd /Q /C \"$prestartcmdfile\"");
+		}
+		
+		
+		# Set and export any environment variables for game server developers unwilling to properly learn Linux
+		if (defined $envVars && $envVars ne ""){
+			my @prestartenvvars = split /[\r\n]+/, $envVars;
+			foreach my $line (@prestartenvvars) {
+				$line = replace_OGP_Env_Vars($server_id, $homedir, $line);
+				if($line ne ""){
+					logger "Configuring environment variable: $line";
+					system($line);
+				}
+			}
+		}
+		
+	}else{
+		return -2;
+	}
+	
+	return 1;
+}
+
+sub multiline_to_startup_comma_format{
+	my ($multiLineVar) = @_;
+	$multiLineVar =~ s/,//g; # commas are invalid anyways in bash
+	$multiLineVar =~ s/[\r]+//g;
+	$multiLineVar =~ s/[\n]+/{OGPNEWLINE}/g;
+	return $multiLineVar;
+}
+
+sub startup_comma_format_to_multiline{
+	my ($multiLineVar) = @_;
+	$multiLineVar =~ s/{OGPNEWLINE}/\r\n/g;
+	return $multiLineVar;
+}
+
 sub check_b4_chdir
 {
 	my ( $path ) = @_;
@@ -2077,14 +2195,14 @@ sub restart_server_without_decrypt
 {
 	my ($home_id, $server_ip, $server_port, $control_protocol,
 		$control_password, $control_type, $home_path, $server_exe, $run_dir,
-		$cmd, $cpu, $nice) = @_;
+		$cmd, $cpu, $nice, $preStart, $envVars) = @_;
 
 	if (stop_server_without_decrypt($home_id, $server_ip, 
 									$server_port, $control_protocol,
 									$control_password, $control_type, $home_path) == 0)
 	{
 		if (universal_start_without_decrypt($home_id, $home_path, $server_exe, $run_dir,
-											$cmd, $server_port, $server_ip, $cpu, $nice) == 1)
+											$cmd, $server_port, $server_ip, $cpu, $nice, $preStart, $envVars) == 1)
 		{
 			return 1;
 		}
