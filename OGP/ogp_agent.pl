@@ -688,7 +688,7 @@ sub universal_start_without_decrypt
 			$line = replace_OGP_Env_Vars($home_id, $home_path, $line);
 			if($line ne ""){
 				logger "Configuring environment variable: $line";
-				$envVarStr .= "$line\n";
+				$envVarStr .= "$line\r\n";
 			}
 		}
 			
