@@ -471,8 +471,7 @@ sub replace_OGP_Vars{
 	my $steamCMDPath = STEAMCMD_CLIENT_DIR;
 	my $fullPath = Path::Class::File->new($steamCMDPath, $steamInsFile);
 	
-	my $windows_steamCMDPath= `cygpath -wa $steamCMDPath`;
-	chop $windows_steamCMDPath;
+	my $windows_steamCMDPath= clean(`cygpath -wa $steamCMDPath`);
 	$windows_steamCMDPath =~ s#/#\\#g;
 	
 	# If the install file exists, the game can be auto updated, else it will be ignored by the game for improper syntax
@@ -748,7 +747,7 @@ sub universal_start_without_decrypt
 		$affinity = "";
 	}
 	
-	my $win_game_binary_dir = `cygpath -wa $game_binary_dir`;
+	my $win_game_binary_dir = clean(`cygpath -wa $game_binary_dir`);
 	chomp $win_game_binary_dir;
 	
 	# Create the startup string.
@@ -803,6 +802,9 @@ sub universal_start_without_decrypt
 	logger
 	  "Startup command [ $clean_cli_bin ] will be executed in dir $game_binary_dir.";
 
+	# Fix permissions 
+	my $ownerShipResults = take_ownership($home_path);
+
 	# Run before start script and set environment variables which will affect create_screen_cmd only... loop already has the envvars as well
 	$run_before_start = run_before_start_commands($home_id, $home_path, $preStart, $envVars);
 
@@ -829,7 +831,7 @@ sub universal_start_without_decrypt
 	if (open(STARTUP, '>', $startup_file))
 	{
 		print STARTUP
-		  "$home_id,$home_path,$server_exe,$run_dir,$startup_cmd,$server_port,$server_ip,$cpu,$nice";
+		  "$home_id,$home_path,$server_exe,$run_dir,$startup_cmd,$server_port,$server_ip,$cpu,$nice,$preStart,$envVars";
 		logger "Created startup flag for $server_ip-$server_port";
 		close(STARTUP);
 	}
@@ -1684,6 +1686,13 @@ sub start_rsync_install
 					   "cd '$path'",
 					   "find -iname \\\*.exe -exec chmod -f +x {} \\\;", 
 					   "find -iname \\\*.bat -exec chmod -f +x {} \\\;");
+	
+	# Fix permissions
+	my $ownerShipResults = take_ownership($home_path, "str");
+	if(defined $ownerShipResults && $ownerShipResults ne ""){
+		$postcmd .= "\n" . $ownerShipResults;
+	}			   
+	
 	my $installfile = create_bash_scripts( $home_path, $bash_scripts_path, $precmd, $postcmd, @installcmds );
 
 	my $screen_cmd = create_screen_cmd($screen_id, "./$installfile");
@@ -1761,8 +1770,7 @@ sub steam_cmd
 	my $steam_binary = Path::Class::File->new(STEAMCMD_CLIENT_DIR, "steamcmd.exe");
 	my $installSteamFile = $screen_id_for_txt_update . "_install.txt";
 	
-	my $windows_home_path = `cygpath -wa $home_path`;
-	chop $windows_home_path;
+	my $windows_home_path = clean(`cygpath -wa $home_path`);
 	
 	my $installtxt = Path::Class::File->new($installSteamFile);
 	
@@ -1817,6 +1825,13 @@ sub steam_cmd
 	backup_home_log( $home_id, $log_file );
 	
 	my $postcmd_mod = $postcmd;
+	
+	# Fix permissions 
+	my $ownerShipResults = take_ownership($home_path, "str");
+	if(defined $ownerShipResults && $ownerShipResults ne ""){
+		$postcmd_mod .= "\n" . $ownerShipResults;
+	}
+	
 	my @installcmds = ("$steam_binary +runscript $installtxt +exit");
 	my $installfile = create_bash_scripts( $home_path, $bash_scripts_path, $precmd, $postcmd_mod, @installcmds );
 	
@@ -2247,6 +2262,7 @@ sub get_chattr
 
 sub ftp_mgr
 {
+	no warnings 'uninitialized';  # recommended: only switch of specific categories
 	return "Bad Encryption Key" unless(decrypt_param(pop(@_)) eq "Encryption checking OK");
 	my ($action, $login, $password, $home_path) = decrypt_params(@_);
 	
@@ -2316,7 +2332,7 @@ sub ftp_mgr
 			}
 			elsif($action eq "useradd")
 			{
-				my $win_home_path = `cygpath -wa "$home_path"`;
+				my $win_home_path = clean(`cygpath -wa "$home_path"`);
 				chomp $win_home_path;
 				my $n;
 
@@ -2837,6 +2853,71 @@ sub stop_fastdl_without_decrypt
 		return -1;
 	}
 }
+
+sub take_ownership{
+	# Looks like this is required to make sure that permissions are correct...
+	my ($home_path, $action) = @_;
+	
+	my $icaclsStr = "";
+	my $takeownCommand = "";
+	my $chmodCommand = "";
+	my $fullCommands = "";
+	
+	if (defined $home_path && $home_path ne "" && -e "$home_path"){
+		my $windows_home_path = clean(`cygpath -wa $home_path`);
+		
+		logger "Running takeown commands on path of $home_path and $windows_home_path";
+		
+		#cygwin path handling
+		$takeownCommand = 'takeown /U cyg_server /f "' . $home_path . '" /r >/dev/null 2>&1';
+		$chmodCommand = 'chmod 775 -R "' . $home_path . '" >/dev/null 2>&1';
+		if(defined $action && $action eq "str"){
+			$fullCommands .= $takeownCommand . "\n";
+			$fullCommands .= $chmodCommand . "\n";
+		}else{
+			system($takeownCommand);
+			system($chmodCommand);
+		}
+		
+		# Windows path handling
+		if(defined $windows_home_path && $windows_home_path ne ""){
+			$takeownCommand = 'takeown /U cyg_server /f "' . $windows_home_path . '" /r >/dev/null 2>&1';
+			$chmodCommand = 'chmod 775 -R "' . $windows_home_path . '" >/dev/null 2>&1';
+			$icaclsStr = 'icacls "' . $windows_home_path . '" /grant cyg_server:\\(OI\\)\\(CI\\)F /T >/dev/null 2>&1';
+			
+			if(defined $action && $action eq "str"){
+				$fullCommands .= $takeownCommand . "\n";
+				$fullCommands .= $chmodCommand . "\n";
+				$fullCommands .= $icaclsStr . "\n";
+			}else{
+				logger "Running icacls command: $icaclsStr";
+				system($takeownCommand);
+				system($chmodCommand);
+				system($icaclsStr);
+			}
+		}		
+	}
+	
+	if($fullCommands ne ""){
+		return $fullCommands;
+	}
+	
+	return 1;
+}
+
+sub clean {
+    my $text = shift;
+    $text =~ s/\n//g;
+    $text =~ s/\r//g;
+    $text = trim($text);
+    return $text;
+}
+
+sub trim { 
+	my $s = shift; 
+	$s =~ s/^\s+|\s+$//g; 
+	return $s 
+};
 
 sub restart_fastdl
 {
