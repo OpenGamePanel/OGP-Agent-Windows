@@ -153,15 +153,15 @@ update() {
 			# Check to make sure ogp_agent_run downloaded successfully from GitHub before we attempt to replace it.
 			# This should fix random 404 people have been experiencing
 			if [ -s "./ogp_agent_run" ] && [ "$(echo "$currentOGPAgentRunContent" | head -n 1)" != "404: Not Found" ] && [ ! -z "$(echo "$currentOGPAgentRunContent" | grep "ogp_agent.pl")" ]; then
-				diff ./ogp_agent_run $AGENTDIR/ogp_agent_run &>/dev/null
+				diff ./ogp_agent /bin/ogp_agent &>/dev/null
 				if test $? -ne 0; then
-					cp -f ./ogp_agent_run $AGENTDIR/ogp_agent_run &> /dev/null
+					cp -f ./ogp_agent /bin/ogp_agent &> /dev/null
 					if test $? -eq 0; then
-						cd $AGENTDIR
-						chmod ug+x ogp_agent_run 2>/dev/null
+						cd /bin
+						chmod ugo+x ogp_agent 2>/dev/null
 						echo "`date`: The agent updater has been changed, relaunching..."
 						rm -Rf tmp
-						./ogp_agent_run
+						/bin/ogp_agent
 						exit 0
 					fi
 				fi
