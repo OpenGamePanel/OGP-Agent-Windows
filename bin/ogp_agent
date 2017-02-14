@@ -5,7 +5,7 @@
 #	Performs auto-restarting of the agent on crash. You can
 #	extend this to log crashes and more.
 #
-# The ogp_agent_run script should be at the top level of the agent tree
+# The ogp_agent script should be at the top level of the agent tree
 # Make sure we are in that directory since the script assumes this is the case
 AGENTDIR="/OGP"
 BASH_PREFS_CONF="$AGENTDIR/Cfg/bash_prefs.cfg"
@@ -149,10 +149,10 @@ update() {
 			REPONAME=OGP-Agent-Windows
 			REVISION=`curl -Lks https://github.com/OpenGamePanel/${REPONAME}/commits/master.atom | grep -Eo "([a-f0-9]{40})" | head -n 1`
 			curl -Os https://raw.githubusercontent.com/OpenGamePanel/${REPONAME}/${REVISION}/bin/ogp_agent
-			currentOGPAgentRunContent=$(cat "./ogp_agent_run")
-			# Check to make sure ogp_agent_run downloaded successfully from GitHub before we attempt to replace it.
+			currentOGPAgentRunContent=$(cat "./ogp_agent")
+			# Check to make sure ogp_agent downloaded successfully from GitHub before we attempt to replace it.
 			# This should fix random 404 people have been experiencing
-			if [ -s "./ogp_agent_run" ] && [ "$(echo "$currentOGPAgentRunContent" | head -n 1)" != "404: Not Found" ] && [ ! -z "$(echo "$currentOGPAgentRunContent" | grep "ogp_agent.pl")" ]; then
+			if [ -s "./ogp_agent" ] && [ "$(echo "$currentOGPAgentRunContent" | head -n 1)" != "404: Not Found" ] && [ ! -z "$(echo "$currentOGPAgentRunContent" | grep "ogp_agent.pl")" ]; then
 				diff ./ogp_agent /bin/ogp_agent &>/dev/null
 				if test $? -ne 0; then
 					cp -f ./ogp_agent /bin/ogp_agent &> /dev/null
