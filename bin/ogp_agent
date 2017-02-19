@@ -85,6 +85,14 @@ if test `id -u` -eq 0; then
 	done
 fi
 
+ogpGitCleanup(){
+	echo "Cleaning up..."
+	rm -Rf ${REPONAME}-* &> /dev/null
+	if [ -e "ogp_agent_latest.zip" ]; then
+		rm -f "ogp_agent_latest.zip"
+	fi
+}
+
 init() {
 	RESTART="yes"
 	AGENT="$AGENTDIR/ogp_agent.pl"
@@ -174,15 +182,14 @@ update() {
 				HEAD=$(curl -L -Os --head -w "%{http_code}" "$URL")
 				if [ "$HEAD" == "200" ]; then
 					echo "Updating agent using curl."
-					curl -L -Os $URL
+					curl -L -s "$URL" -o "ogp_agent_latest.zip"
 					if test $? -ne 0; then
 						echo "`date`: curl failed to download the update package."
 					else
-						unzip -oq "${REVISION}.zip"
+						unzip -oq "ogp_agent_latest.zip"
 						if test $? -ne 0; then
 							echo "`date`: Unable to unzip the update package."
-							echo "cleaning up..."
-							rm -Rf ${REPONAME}-* &> /dev/null
+							ogpGitCleanup
 						else
 							cd ${REPONAME}-${REVISION}
 							cp -avf OGP/* $AGENTDIR/. &> /dev/null
@@ -191,9 +198,8 @@ update() {
 							CP_BIN_RET=$?
 							if [ $CP_APP_RET -ne 0 -o $CP_BIN_RET -ne 0 ]; then
 								echo "`date`: The agent files cannot be overwritten."
-								echo "Cleaning up..."
 								cd ..
-								rm -Rf ${REPONAME}-* &> /dev/null
+								ogpGitCleanup
 								echo "Agent update failed."
 							else
 								if test ! -e "$AGENTDIR/Cfg/Preferences.pm"; then
@@ -203,9 +209,8 @@ update() {
 								chmod +x $AGENTDIR/ogp_agent.pl &> /dev/null
 								chmod +x $AGENTDIR/agent_conf.sh &> /dev/null
 								chmod +x /usr/bin/ogp_agent &> /dev/null
-								echo "Cleaning up..."
 								cd ..
-								rm -Rf ${REPONAME}-* &> /dev/null
+								ogpGitCleanup
 								sed -i "s/version.*/version => '${REVISION}',/" $AGENTDIR/Cfg/Config.pm
 								echo "Agent updated successfully."
 							fi
