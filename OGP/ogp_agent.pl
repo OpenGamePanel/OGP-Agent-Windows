@@ -640,6 +640,9 @@ sub universal_start_without_decrypt
 		$server_port, $server_ip, $cpu,	$nice, $preStart, $envVars
 	   ) = @_;
 	   
+	# Replace any {OGP_HOME_DIR} in the $start_cmd with the server's home directory path
+	$startup_cmd = replace_OGP_Env_Vars($home_id, $home_path, $startup_cmd);
+	   
 	if (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1)
 	{
 		logger "This server is already running (ID: $home_id).";
