@@ -1763,7 +1763,7 @@ sub steam_cmd
 ### @return 0 In error case.
 sub steam_cmd_without_decrypt
 {
-	my ($home_id, $home_path, $mod, $modname, $betaname, $betapwd, $user, $pass, $guard, $exec_folder_path, $exec_path, $precmd, $postcmd, $cfg_os) = decrypt_params(@_);
+	my ($home_id, $home_path, $mod, $modname, $betaname, $betapwd, $user, $pass, $guard, $exec_folder_path, $exec_path, $precmd, $postcmd, $cfg_os) = @_;
 	
 	# Creates home path if it doesn't exist
 	if ( check_b4_chdir($home_path) != 0)
