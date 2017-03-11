@@ -1877,7 +1877,14 @@ sub fetch_steam_version
 	
 	if ($response->is_success)
 	{
-		return $response->decoded_content;
+		my $content = $response->decoded_content;
+		
+		if ($content =~ /^\d+\z/)
+		{
+			return $content;
+		} else {
+			return -9;
+		}
 	} else {
 		return -10;
 	}
