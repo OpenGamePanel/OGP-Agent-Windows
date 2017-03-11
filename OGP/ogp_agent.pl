@@ -1870,14 +1870,21 @@ sub fetch_steam_version
 	
 	logger "Getting latest version info for AppId $appId";
 	
-	$ua->agent('OGP Windows Agent');
+	$ua->agent('OGP Windows Agent v/' . AGENT_VERSION);
 	$ua->timeout(10);
 	
 	my $response = $ua->get("http://opengamepanel.org/supported_games/api.php?appid=$appId&action=getBuildId");
 	
 	if ($response->is_success)
 	{
-		return $response->decoded_content;
+		my $content = $response->decoded_content;
+		
+		if ($content =~ /^\d+\z/)
+		{
+			return $content;
+		} else {
+			return -9;
+		}
 	} else {
 		return -10;
 	}
