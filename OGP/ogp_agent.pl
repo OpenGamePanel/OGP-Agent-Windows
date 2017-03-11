@@ -1858,15 +1858,29 @@ sub fetch_steam_version
 {
 	return "Bad Encryption Key" unless(decrypt_param(pop(@_)) eq "Encryption checking OK");
 	my ($appId, $pureOutput) = &decrypt_params(@_);
-
-	my $steam_binary = Path::Class::File->new(STEAMCMD_CLIENT_DIR, "steamcmd.exe");
-	my $steam_options = "+login anonymous +app_info_update 1 +app_info_print \"$appId\" +quit";
-	my $grep = $pureOutput != "0" ? "" : '| grep -EA 1000 "^\s+\"branches\"$" | grep -EA 5 "^\s+\"public\"$" | grep -m 1 -EB 10 "^\s+}$" | grep -E "^\s+\"buildid\"\s+" | tr \'[:blank:]"\' \' \' | tr -s \' \' | cut -d\' \' -f3';
-
+	my $ua = LWP::UserAgent->new;
+	
+	# Windows steam_cmd is bugged. So we cannot use the following until it's fixed.
+	# https://github.com/ValveSoftware/Source-1-Games/issues/1929
+	#my $steam_binary = Path::Class::File->new(STEAMCMD_CLIENT_DIR, "steamcmd.exe");
+	#my $steam_options = "+login anonymous +app_info_update 1 +app_info_print \"$appId\" +quit";
+	#my $grep = $pureOutput != "0" ? "" : '| grep -EA 1000 "^\s+\"branches\"$" | grep -EA 5 "^\s+\"public\"$" | grep -m 1 -EB 10 "^\s+}$" | grep -E "^\s+\"buildid\"\s+" | tr \'[:blank:]"\' \' \' | tr -s \' \' | cut -d\' \' -f3';
+	
+	#my $response = `$steam_binary $steam_options $grep`;
+	
 	logger "Getting latest version info for AppId $appId";
-	my $response = `$steam_binary $steam_options $grep`;
-
-	return $response;
+	
+	$ua->agent('OGP Windows Agent');
+	$ua->timeout(10);
+	
+	my $response = $ua->get("http://opengamepanel.org/supported_games/api.php?appid=$appId&action=getBuildId");
+	
+	if ($response->is_success)
+	{
+		return $response->decoded_content;
+	} else {
+		return -10;
+	}
 }
 
 sub installed_steam_version
