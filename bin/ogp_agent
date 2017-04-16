@@ -7,83 +7,114 @@
 #
 # The ogp_agent script should be at the top level of the agent tree
 # Make sure we are in that directory since the script assumes this is the case
+
+#####################
+#  Important VARS   #
+#####################
+
 AGENTDIR="/OGP"
 BASH_PREFS_CONF="$AGENTDIR/Cfg/bash_prefs.cfg"
-chmod -Rf 770 $AGENTDIR
-find $AGENTDIR -type f -print | xargs chmod ug=rw 
-if [ -d "$AGENTDIR/steamcmd" ]; then
-	find $AGENTDIR/steamcmd -iname \*.dll -exec chmod +x {} \;
-	find $AGENTDIR/steamcmd -iname \*.exe -exec chmod +x {} \;
-fi
-if [ -d "$AGENTDIR/screenlogs" ]; then
-	chmod -Rf ug=rwx $AGENTDIR/screenlogs
-fi
-chmod +x $AGENTDIR/ogp_agent.pl &> /dev/null
-chmod +x $AGENTDIR/agent_conf.sh &> /dev/null
-chmod +x /usr/bin/ogp_agent &> /dev/null
+REPONAME=OGP-Agent-Windows
+GitHubUsername="OpenGamePanel"
 
-# Should we perform an automatic update?
-if [ -e $BASH_PREFS_CONF ]
-then
-	source "$BASH_PREFS_CONF"
-	if [ "X$agent_auto_update" == "X1" ]
+#####################
+#     FUNCTIONS     #
+#####################
+
+setupOGPAndReadBashPrefs(){
+
+	# Find CURL
+	if [ -z "$CURL" -o -z "$UNZIP" ]; then
+		checkDepends
+	fi
+
+	chmod -Rf 770 $AGENTDIR
+	find $AGENTDIR -type f -print | xargs chmod ug=rw 
+	if [ -d "$AGENTDIR/steamcmd" ]; then
+		find $AGENTDIR/steamcmd -iname \*.dll -exec chmod +x {} \;
+		find $AGENTDIR/steamcmd -iname \*.exe -exec chmod +x {} \;
+	fi
+	if [ -d "$AGENTDIR/screenlogs" ]; then
+		chmod -Rf ug=rwx $AGENTDIR/screenlogs
+	fi
+	chmod +x $AGENTDIR/ogp_agent.pl &> /dev/null
+	chmod +x $AGENTDIR/agent_conf.sh &> /dev/null
+	chmod +x /usr/bin/ogp_agent &> /dev/null
+
+	# Should we perform an automatic update?
+	if [ -e $BASH_PREFS_CONF ]
 	then
+		source "$BASH_PREFS_CONF"
+		if [ "X$agent_auto_update" == "X1" ]
+		then
+			AUTO_UPDATE="yes"
+		fi
+		
+		if [ "X$run_pureftpd" == "X0" ]
+		then
+			RUN_PUREFTPD="no"
+		else
+			RUN_PUREFTPD="yes"
+		fi
+		
+		if [ "X$ftp_ip" != "X" ]
+		then
+			FTP_IP="$ftp_ip"
+		else
+			FTP_IP="0.0.0.0"
+		fi
+		
+		if [ "X$ftp_port" != "X" ]
+		then
+			FTP_PORT="$ftp_port"
+		else
+			FTP_PORT="21"
+		fi
+		
+		if [ "X$ftp_pasv_range" != "X" ]
+		then
+			FTP_PASV_STRING="-p $ftp_pasv_range"
+		else
+			FTP_PASV_STRING=""
+		fi
+		
+		# Use custom github update address
+		if [ ! -z "$github_update_username" ]; then
+			if [ -f "$CURL" -a -x "$CURL" ] && [ -f "$UNZIP" -a -x "$UNZIP" ]; then
+				REVISIONTest=`curl -Lks https://github.com/${github_update_username}/${REPONAME}/commits/master.atom | grep -Eo "([a-f0-9]{40})" | head -n 1`
+				if [ ! -z "$REVISIONTest" ]; then
+					GitHubUsername=${github_update_username}
+				fi
+			fi
+		fi
+		
+	else
 		AUTO_UPDATE="yes"
-	fi
-	
-	if [ "X$run_pureftpd" == "X0" ]
-	then
-		RUN_PUREFTPD="no"
-	else
 		RUN_PUREFTPD="yes"
-	fi
-	
-	if [ "X$ftp_ip" != "X" ]
-	then
-		FTP_IP="$ftp_ip"
-	else
 		FTP_IP="0.0.0.0"
-	fi
-	
-	if [ "X$ftp_port" != "X" ]
-	then
-		FTP_PORT="$ftp_port"
-	else
 		FTP_PORT="21"
+		FTP_PASV_STING=""
 	fi
-	
-	if [ "X$ftp_pasv_range" != "X" ]
-	then
-		FTP_PASV_STRING="-p $ftp_pasv_range"
-	else
-		FTP_PASV_STRING=""
-	fi
-else
-	AUTO_UPDATE="yes"
-	RUN_PUREFTPD="yes"
-	FTP_IP="0.0.0.0"
-	FTP_PORT="21"
-	FTP_PASV_STING=""
-fi
 
-if test `id -u` -eq 0; then
-	echo
-	echo
-	echo "************** WARNING ***************"
-	echo "Running the OGP agent as root  "
-	echo "is highly discouraged. It is generally"
-	echo "unnecessary to use root privileges to "
-	echo "execute the agent.         "
-	echo "**************************************"
-	echo
-	echo
-	timeout=10
-	while test $timeout -gt 0; do
-		echo -n "The agent will continue to launch in $timeout seconds\r"
-		timeout=`expr $timeout - 1`
-		sleep 1
-	done
-fi
+	if test `id -u` -eq 0; then
+		echo
+		echo
+		echo "************** WARNING ***************"
+		echo "Running the OGP agent as root  "
+		echo "is highly discouraged. It is generally"
+		echo "unnecessary to use root privileges to "
+		echo "execute the agent.         "
+		echo "**************************************"
+		echo
+		echo
+		timeout=10
+		while test $timeout -gt 0; do
+			echo -n "The agent will continue to launch in $timeout seconds\r"
+			timeout=`expr $timeout - 1`
+			sleep 1
+		done
+	fi
+}
 
 ogpGitCleanup(){
 	echo "Cleaning up..."
@@ -145,18 +176,14 @@ checkDepends() {
 update() {
 	# Run the git update
 	if test -n "$AUTO_UPDATE"; then
-		if [ -z "$CURL" -o -z "$UNZIP" ]; then
-			checkDepends
-		fi
 		if [ -f "$CURL" -a -x "$CURL" ] && [ -f "$UNZIP" -a -x "$UNZIP" ]; then
 			cd $AGENTDIR
 			if [ ! -d tmp ]; then
 				mkdir tmp
 			fi
 			cd tmp
-			REPONAME=OGP-Agent-Windows
-			REVISION=`curl -Lks https://github.com/OpenGamePanel/${REPONAME}/commits/master.atom | grep -Eo "([a-f0-9]{40})" | head -n 1`
-			curl -Os https://raw.githubusercontent.com/OpenGamePanel/${REPONAME}/${REVISION}/bin/ogp_agent
+			REVISION=`curl -Lks https://github.com/${GitHubUsername}/${REPONAME}/commits/master.atom | grep -Eo "([a-f0-9]{40})" | head -n 1`
+			curl -Os https://raw.githubusercontent.com/${GitHubUsername}/${REPONAME}/${REVISION}/bin/ogp_agent
 			currentOGPAgentRunContent=$(cat "./ogp_agent")
 			# Check to make sure ogp_agent downloaded successfully from GitHub before we attempt to replace it.
 			# This should fix random 404 people have been experiencing
@@ -178,7 +205,7 @@ update() {
 			if [ "$CURRENT" == "$REVISION" ]; then
 				echo "The agent is up to date."
 			else
-				URL=https://github.com/OpenGamePanel/${REPONAME}/archive/${REVISION}.zip
+				URL=https://github.com/${GitHubUsername}/${REPONAME}/archive/${REVISION}.zip
 				HEAD=$(curl -L -Os --head -w "%{http_code}" "$URL")
 				if [ "$HEAD" == "200" ]; then
 					echo "Updating agent using curl."
@@ -282,12 +309,19 @@ quit() {
 	kill -2 $$
 }
 
+#####################
+#   MAIN APP CODE   #
+#####################
+
 PATH=/usr/local/bin:/usr/bin:${PATH}
 
 # Start PureFTPD if OGP has been configured to manage FTP users
 if [ ! -z "$RUN_PUREFTPD" ] && [ "$RUN_PUREFTPD" == "yes" ]; then
 	/usr/sbin/pure-ftpd.exe -S ${FTP_IP},${FTP_PORT} ${FTP_PASV_STRING} -lpuredb:/etc/pureftpd.pdb -g /var/run/pure-ftpd.pid &
 fi
+
+# Setup OGP and Read Preferences
+setupOGPAndReadBashPrefs
 
 # Initialise
 init $*
