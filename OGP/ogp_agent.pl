@@ -2449,7 +2449,7 @@ sub ftp_mgr
 					for (keys @users) {
 						if($users[$_]->{'Name'} eq $login)
 						{
-							splice($data->{'FileZillaServer'}->{'Users'}->{'User'},$_,1);
+							delete $data->{'FileZillaServer'}->{'Users'}->{'User'}[$_];
 							last;
 						}
 					}
