@@ -66,6 +66,7 @@ use constant AGENT_PID_FILE =>
 use constant STEAM_LICENSE_OK => "Accept";
 use constant STEAM_LICENSE	=> $Cfg::Config{steam_license};
 use constant MANUAL_TMP_DIR   => Path::Class::Dir->new(AGENT_RUN_DIR, 'tmp');
+use constant SHARED_GAME_TMP_DIR   => Path::Class::Dir->new(AGENT_RUN_DIR, 'shared');
 use constant STEAMCMD_CLIENT_DIR => Path::Class::Dir->new(AGENT_RUN_DIR, 'steamcmd');
 use constant STEAMCMD_CLIENT_BIN =>
   Path::Class::File->new(STEAMCMD_CLIENT_DIR, 'steamcmd.exe');
@@ -423,7 +424,7 @@ sub create_screen_id
 sub create_screen_cmd
 {
 	my ($screen_id, $exec_cmd) = @_;
-	$exec_cmd = replace_OGP_Vars($screen_id, $exec_cmd);
+	$exec_cmd = replace_OGP_Env_Vars($screen_id, "", "", $exec_cmd);
 	return
 	  sprintf('screen -d -m -t "%1$s" -c ' . SCREENRC_FILE . ' -S %1$s %2$s',
 			  $screen_id, $exec_cmd);
@@ -435,7 +436,7 @@ sub create_screen_cmd_loop
 	my ($screen_id, $exec_cmd, $priority, $affinity, $envVars) = @_;
 	my $server_start_batfile = $screen_id . "_startup_scr.bat";
 	
-	$exec_cmd = replace_OGP_Vars($screen_id, $exec_cmd);
+	$exec_cmd = replace_OGP_Env_Vars($screen_id, "", "", $exec_cmd);
 	
 	# Create batch file that will launch the process and store PID which will be used for killing later
 	open (SERV_START_BAT_SCRIPT, '>', $server_start_batfile);
@@ -466,34 +467,40 @@ sub create_screen_cmd_loop
 
 }
 
-sub replace_OGP_Vars{
-	# This function replaces constants from game server XML Configs with OGP paths for Steam Auto Updates for example
-	my ($screen_id, $exec_cmd) = @_;
-	my $screen_id_for_txt_update = substr ($screen_id, rindex($screen_id, '_') + 1);
-	my $steamInsFile = $screen_id_for_txt_update . "_install.txt";
-	my $steamCMDPath = STEAMCMD_CLIENT_DIR;
-	my $fullPath = Path::Class::File->new($steamCMDPath, $steamInsFile);
+sub replace_OGP_Env_Vars{
+	# This function replaces constants from environment variables set in the XML
+	my ($screen_id, $homeid, $homepath, $exec_cmd, $game_key) = @_;
 	
-	my $windows_steamCMDPath= clean(`cygpath -wa $steamCMDPath`);
-	$windows_steamCMDPath =~ s#/#\\#g;
+	# Handle steam specific replacements
+	if(defined $screen_id && $screen_id ne ""){
+		my $screen_id_for_txt_update = substr ($screen_id, rindex($screen_id, '_') + 1);
+		my $steamInsFile = $screen_id_for_txt_update . "_install.txt";
+		my $steamCMDPath = STEAMCMD_CLIENT_DIR;
+		my $fullPath = Path::Class::File->new($steamCMDPath, $steamInsFile);
+		
+		my $windows_steamCMDPath= clean(`cygpath -wa $steamCMDPath`);
+		$windows_steamCMDPath =~ s#/#\\#g;
+		
+		# If the install file exists, the game can be auto updated, else it will be ignored by the game for improper syntax
+		# To generate the install file, the "Install/Update via Steam" button must be clicked on at least once!
+		if(-e $fullPath){
+			$exec_cmd =~ s/{OGP_STEAM_CMD_DIR}/$windows_steamCMDPath/g;
+			$exec_cmd =~ s/{STEAMCMD_INSTALL_FILE}/$steamInsFile/g;
+		}
+	}
+
+	# Handle home directory replacement
+	if(defined $homepath && $homepath ne ""){
+		$exec_cmd =~ s/{OGP_HOME_DIR}/$homepath/g;
+	}
 	
-	# If the install file exists, the game can be auto updated, else it will be ignored by the game for improper syntax
-	# To generate the install file, the "Install/Update via Steam" button must be clicked on at least once!
-	if(-e $fullPath){
-		$exec_cmd =~ s/{OGP_STEAM_CMD_DIR}/$windows_steamCMDPath/g;
-		$exec_cmd =~ s/{STEAMCMD_INSTALL_FILE}/$steamInsFile/g;
+	# Handle global game shared directory replacement
+	if(defined $game_key && $game_key ne ""){
+		my $shared_path = Path::Class::Dir->new(SHARED_GAME_TMP_DIR, $game_key);
+		$exec_cmd =~ s/{OGP_GAME_SHARED_DIR}/$shared_path/g;
 	}
 	
 	return $exec_cmd;
-}
-
-sub replace_OGP_Env_Vars{
-	# This function replaces constants from environment variables set in the XML
-	my ($homeid, $homepath, $strToReplace) = @_;
-
-	$strToReplace =~ s/{OGP_HOME_DIR}/$homepath/g;
-	
-	return $strToReplace;
 }
 
 sub encode_list
@@ -643,9 +650,6 @@ sub universal_start_without_decrypt
 		$server_port, $server_ip, $cpu,	$nice, $preStart, $envVars, $game_key
 	   ) = @_;
 	   
-	# Replace any {OGP_HOME_DIR} in the $start_cmd with the server's home directory path
-	$startup_cmd = replace_OGP_Env_Vars($home_id, $home_path, $startup_cmd);
-	   
 	if (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1)
 	{
 		logger "This server is already running (ID: $home_id).";
@@ -690,7 +694,7 @@ sub universal_start_without_decrypt
 		my @prestartenvvars = split /[\r\n]+/, $envVars;
 		my $envVarStr = "";
 		foreach my $line (@prestartenvvars) {
-			$line = replace_OGP_Env_Vars($home_id, $home_path, $line);
+			$line = replace_OGP_Env_Vars("", $home_id, $home_path, $line);
 			if($line ne ""){
 				logger "Configuring environment variable: $line";
 				$envVarStr .= "$line\r\n";
@@ -705,6 +709,9 @@ sub universal_start_without_decrypt
 	}
 
 	my $screen_id = create_screen_id(SCREEN_TYPE_HOME, $home_id);
+	
+	# Replace any OGP variables
+	$startup_cmd = replace_OGP_Env_Vars($screen_id, $home_id, $home_path, $startup_cmd, $game_key);
 
 	# Create affinity and priority strings
 	my $priority;
@@ -1546,7 +1553,7 @@ sub run_before_start_commands
 		if (defined $envVars && $envVars ne ""){
 			my @prestartenvvars = split /[\r\n]+/, $envVars;
 			foreach my $line (@prestartenvvars) {
-				$line = replace_OGP_Env_Vars($server_id, $homedir, $line);
+				$line = replace_OGP_Env_Vars("", $server_id, $homedir, $line);
 				if($line ne ""){
 					logger "Configuring environment variable: $line";
 					system($line);
