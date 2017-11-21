@@ -1964,7 +1964,7 @@ sub automatic_steam_update
 					last;
 				}
 
-				sleep 5;universal_start_without_decrypt
+				sleep 5;
 			}
 
 		} else {
