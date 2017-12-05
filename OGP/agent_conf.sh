@@ -84,7 +84,8 @@ failed()
 	exit 1
 }
 
-agent_home="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )" 
+scriptDir="$(dirname "${BASH_SOURCE[0]}")"
+agent_home="$(cd "$scriptDir" && pwd)"
 
 cfgfile=${agent_home}/Cfg/Config.pm
 prefsfile=${agent_home}/Cfg/Preferences.pm
