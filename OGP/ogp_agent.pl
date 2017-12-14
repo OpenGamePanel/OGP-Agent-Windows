@@ -456,11 +456,17 @@ sub create_screen_cmd_loop
 	
 	$batch_server_command .= "set starttime=%time%" . "\r\n"
 	. "start " . $priority . " " . $affinity . " /wait " . $exec_cmd . "\r\n"
-	. "set endtime=%time%" . "\r\n" 
-	. "set /a secs=%endtime:~6,2%" . "\r\n" 
+	. "set endtime=%time%" . "\r\n"
+	. "set /a starttimestamp=\"%starttime:~0,2%%starttime:~3,2%\"" . "\r\n"
+	. "set /a endtimestamp=\"%endtime:~0,2%%endtime:~3,2%\"" . "\r\n"
+	. "set /a secs=%endtime:~6,2%" . "\r\n"
 	. "set /a secs=%secs%-%starttime:~6,2%" . "\r\n"
 	. "if exist SERVER_STOPPED exit" . "\r\n"
-	. "if %secs% lss 15 exit" . "\r\n"
+	. "if %secs% lss 15 (" . "\r\n"
+	. "\tif \"%starttimestamp%\" == \"%endtimestamp%\" ( " ."\r\n"
+	. "\t\texit" ."\r\n"
+	. "\t)" ."\r\n"
+	. ")" ."\r\n"
 	. "goto TOP" . "\r\n";
 	
 	print SERV_START_BAT_SCRIPT $batch_server_command;
