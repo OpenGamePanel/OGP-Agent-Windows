@@ -448,7 +448,8 @@ sub create_screen_cmd_loop
 	# Create batch file that will launch the process and store PID which will be used for killing later
 	open (SERV_START_BAT_SCRIPT, '>', $server_start_batfile);
 	
-	my $batch_server_command = "@ECHO OFF" . "\r\n"
+	my $batch_server_command = "\@echo off" . "\r\n"
+	. "setlocal EnableDelayedExpansion" . "\r\n"
 	. ":TOP" . "\r\n";
 	
 	if(defined $envVars && $envVars ne ""){
