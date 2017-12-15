@@ -448,7 +448,8 @@ sub create_screen_cmd_loop
 	# Create batch file that will launch the process and store PID which will be used for killing later
 	open (SERV_START_BAT_SCRIPT, '>', $server_start_batfile);
 	
-	my $batch_server_command = ":TOP" . "\r\n";
+	my $batch_server_command = "@ECHO OFF" . "\r\n"
+	. ":TOP" . "\r\n";
 	
 	if(defined $envVars && $envVars ne ""){
 		$batch_server_command .= $envVars;
@@ -457,15 +458,14 @@ sub create_screen_cmd_loop
 	$batch_server_command .= "set STARTTIME=%time%" . "\r\n"
 	. "start " . $priority . " " . $affinity . " /wait " . $exec_cmd . "\r\n"
 	. "set ENDTIME=%time%" . "\r\n"
-	. "set /A STARTTIME=(1%STARTTIME:~0,2%-100)*360000 + (1%STARTTIME:~3,2%-100)*6000 + (1%STARTTIME:~6,2%-100)*100 + (1%STARTTIME:~9,2%-100)" . "\r\n"
-	. "set /A ENDTIME=(1%ENDTIME:~0,2%-100)*360000 + (1%ENDTIME:~3,2%-100)*6000 + (1%ENDTIME:~6,2%-100)*100 + (1%ENDTIME:~9,2%-100)" . "\r\n"
-	. "set /A DURATION=%ENDTIME%-%STARTTIME%" ."\r\n"
-	. "if %ENDTIME% LSS %STARTTIME% set /A DURATION=%STARTTIME%-%ENDTIME%" ."\r\n"
-	. "set /A DURATIONH=%DURATION% / 360000" ."\r\n"
-	. "set /A DURATIONM=(%DURATION% - %DURATIONH%*360000) / 6000" ."\r\n"
-	. "set /A DURATIONS=(%DURATION% - %DURATIONH%*360000 - %DURATIONM%*6000) / 100" ."\r\n"
+	. "set \"end=!ENDTIME:%time:~8,1%=%%100)*100+1!\"  &  set \"start=!STARTTIME:%time:~8,1%=%%100)*100+1!\"" . "\r\n"
+	. "set /A \"elap=((((10!end:%time:~2,1%=%%100)*60+1!%%100)-((((10!start:%time:~2,1%=%%100)*60+1!%%100)\"" . "\r\n"
+	. "set /A \"cc=elap%%100+100,elap/=100,ss=elap%%60+100,elap/=60,mm=elap%%60+100,hh=elap/60+100\"" . "\r\n"
+	. "set hour=%hh:~1%" . "\r\n"
+	. "set minute=%mm:~1%" . "\r\n"
+	. "set second=%ss:~1%" . "\r\n"
 	. "if exist SERVER_STOPPED exit" . "\r\n"
-	. "if %DURATIONS% lss 15 exit" . "\r\n"
+	. "IF \"%hour%\" == \"00\" IF \"%minute%\" == \"00\" IF %second% lss 15 exit" . "\r\n"
 	. "goto TOP" . "\r\n";
 	
 	print SERV_START_BAT_SCRIPT $batch_server_command;
