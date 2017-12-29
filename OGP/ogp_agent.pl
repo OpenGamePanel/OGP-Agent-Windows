@@ -456,9 +456,9 @@ sub create_screen_cmd_loop
 		$batch_server_command .= $envVars;
 	}
 	
-	$batch_server_command .= "set STARTTIME=%time%" . "\r\n"
+	$batch_server_command .= "set STARTTIME=%TIME: =0%" . "\r\n"
 	. "start " . $priority . " " . $affinity . " /wait " . $exec_cmd . "\r\n"
-	. "set ENDTIME=%time%" . "\r\n"
+	. "set ENDTIME=%TIME: =0%" . "\r\n"
 	. "set \"end=!ENDTIME:%time:~8,1%=%%100)*100+1!\"  &  set \"start=!STARTTIME:%time:~8,1%=%%100)*100+1!\"" . "\r\n"
 	. "set /A \"elap=((((10!end:%time:~2,1%=%%100)*60+1!%%100)-((((10!start:%time:~2,1%=%%100)*60+1!%%100)\"" . "\r\n"
 	. "set /A \"cc=elap%%100+100,elap/=100,ss=elap%%60+100,elap/=60,mm=elap%%60+100,hh=elap/60+100\"" . "\r\n"
