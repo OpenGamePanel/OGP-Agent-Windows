@@ -1054,6 +1054,8 @@ sub stop_server_without_decrypt
 	my ($home_id, $server_ip, $server_port, $control_protocol,
 		$control_password, $control_type, $home_path) = @_;
 		
+	my $usedProtocolToStop = 0;
+		
 	my $startup_file = Path::Class::File->new(GAME_STARTUP_DIR, "$server_ip-$server_port");
 	
 	if (-e $startup_file)
@@ -1103,6 +1105,7 @@ sub stop_server_without_decrypt
 
 			my $rconCommand = "quit";
 			$rcon->execute($rconCommand);
+			$usedProtocolToStop = 1;
 		}
 		elsif ($control_protocol eq "rcon2")
 		{
@@ -1116,6 +1119,7 @@ sub stop_server_without_decrypt
 
 			my $rconCommand = "quit";
 			$rcon2->run($rconCommand);
+			$usedProtocolToStop = 1;
 		}
 		elsif ($control_protocol eq "armabe")
 		{
@@ -1130,8 +1134,8 @@ sub stop_server_without_decrypt
 			my $rconCommand = "#shutdown";
 			my $armabe_result = $armabe->run($rconCommand);
 			if ($armabe_result) {
-				logger "ArmaBE Shutdown command sent successfully - Waiting 5s";
-				sleep(5); # Arma servers take some time to shut down
+				logger "ArmaBE Shutdown command sent successfully";
+				$usedProtocolToStop = 1;
 			}
 		}
 		system('screen -wipe > /dev/null 2>&1');
@@ -1142,6 +1146,24 @@ sub stop_server_without_decrypt
 		my $screen_id = create_screen_id(SCREEN_TYPE_HOME, $home_id);
 		system("cmd /C taskkill /f /fi 'PID eq $screen_pid' /T");
 		system('screen -wipe > /dev/null 2>&1');
+	}
+	
+	my @server_pids = get_home_pids($home_id);
+		
+	# Gives the server time to shutdown with rcon in case it takes a while for the server to shutdown (arma for example) before we forcefully kill it
+	if ($usedProtocolToStop == 1){
+		my $timeWaited = 0;
+		my $pidSize = @server_pids;
+		while ($pidSize > 0 && $timeWaited < 5) {
+			select(undef, undef, undef, 0.25); # Sleeps for 250ms
+			
+			# Add to time waited
+			$timeWaited += 0.25;
+			
+			# Recheck server home PIDs
+			@server_pids = get_home_pids($home_id);
+			$pidSize = @server_pids;
+		}
 	}
 	
 	if (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1)
