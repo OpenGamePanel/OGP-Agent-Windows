@@ -1842,7 +1842,7 @@ sub steam_cmd
 ### @return 0 In error case.
 sub steam_cmd_without_decrypt
 {
-	my ($home_id, $home_path, $mod, $modname, $betaname, $betapwd, $user, $pass, $guard, $exec_folder_path, $exec_path, $precmd, $postcmd, $cfg_os) = @_;
+	my ($home_id, $home_path, $mod, $modname, $betaname, $betapwd, $user, $pass, $guard, $exec_folder_path, $exec_path, $precmd, $postcmd, $cfg_os, $filesToLockUnlock, $arch_bits) = @_;
 	
 	# Creates home path if it doesn't exist
 	if ( check_b4_chdir($home_path) != 0)
@@ -1868,6 +1868,12 @@ sub steam_cmd_without_decrypt
 	open  FILE, '>', $installtxt;
 	print FILE "\@ShutdownOnFailedCommand 1\n";
 	print FILE "\@NoPromptForPassword 1\n";
+	
+	# Handle requested SteamCMD architecture
+	if(defined $arch_bits && $arch_bits ne ""){
+		print FILE "\@sSteamCmdForcePlatformBitness =\"" . $arch_bits . "\"\n";
+	}
+	
 	if($guard ne '')
 	{
 		print FILE "set_steam_guard_code $guard\n";
@@ -1990,7 +1996,7 @@ sub automatic_steam_update
 	my ($home_id, $game_home, $server_ip, $server_port, $exec_path, $exec_folder_path,
 		$control_protocol, $control_password, $control_type,
 		$appId, $modname, $betaname, $betapwd, $user, $pass, $guard, $precmd, $postcmd, $cfg_os, $filesToLockUnlock,
-		$startup_cmd, $cpu, $nice, $preStart, $envVars, $game_key) = &decrypt_params(@_);
+		$startup_cmd, $cpu, $nice, $preStart, $envVars, $game_key, $arch_bits) = &decrypt_params(@_);
 
 	# Is the server currently running? if it is, we'll try to start it after updating.
 	my $isServerRunning = is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1 ? 1 : 0;
@@ -2016,7 +2022,7 @@ sub automatic_steam_update
 	}
 
 	# steam_cmd: Returns 0 if the update failed, in which case, don't try starting the server - because we may have an incomplete or corrupt installation.
-	if (steam_cmd_without_decrypt($home_id, $game_home, $appId, $modname, $betaname, $betapwd, $user, $pass, $guard, $exec_folder_path, $exec_path, $precmd, $postcmd, $cfg_os, $filesToLockUnlock) == 0)
+	if (steam_cmd_without_decrypt($home_id, $game_home, $appId, $modname, $betaname, $betapwd, $user, $pass, $guard, $exec_folder_path, $exec_path, $precmd, $postcmd, $cfg_os, $filesToLockUnlock, $arch_bits) == 0)
 	{
 		logger("Failed to start steam_cmd for server $home_id.");
 		return -8;
