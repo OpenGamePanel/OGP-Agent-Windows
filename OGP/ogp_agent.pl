@@ -1150,7 +1150,7 @@ sub stop_server_without_decrypt
 		
 	# Gives the server time to shutdown with rcon in case it takes a while for the server to shutdown (arma for example) before we forcefully kill it
 	if ($usedProtocolToStop == 1){
-		my $serverIsRunning = (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1)
+		my $serverIsRunning = (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1);
 		my $timeWaited = 0;
 		my $pidSize = @server_pids;
 		my $maxWaitTime = 5;
@@ -1167,7 +1167,7 @@ sub stop_server_without_decrypt
 			$timeWaited += 0.25;
 			
 			# Recheck if server is running
-			$serverIsRunning = (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1)
+			$serverIsRunning = (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1);
 		}
 	}
 	
