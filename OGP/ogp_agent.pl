@@ -1147,11 +1147,10 @@ sub stop_server_without_decrypt
 		system("cmd /C taskkill /f /fi 'PID eq $screen_pid' /T");
 		system('screen -wipe > /dev/null 2>&1');
 	}
-	
-	my @server_pids = get_home_pids($home_id);
 		
 	# Gives the server time to shutdown with rcon in case it takes a while for the server to shutdown (arma for example) before we forcefully kill it
 	if ($usedProtocolToStop == 1){
+		my $serverIsRunning = (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1)
 		my $timeWaited = 0;
 		my $pidSize = @server_pids;
 		my $maxWaitTime = 5;
@@ -1161,15 +1160,14 @@ sub stop_server_without_decrypt
 			$maxWaitTime = $Cfg::Preferences{protocol_shutdown_waittime};
 		}
 		
-		while ($pidSize > 0 && $timeWaited < $maxWaitTime) {
+		while ($serverIsRunning && $timeWaited < $maxWaitTime) {
 			select(undef, undef, undef, 0.25); # Sleeps for 250ms
 			
 			# Add to time waited
 			$timeWaited += 0.25;
 			
-			# Recheck server home PIDs
-			@server_pids = get_home_pids($home_id);
-			$pidSize = @server_pids;
+			# Recheck if server is running
+			$serverIsRunning = (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1)
 		}
 	}
 	
