@@ -66,6 +66,7 @@ use constant AGENT_PID_FILE =>
 use constant STEAM_LICENSE_OK => "Accept";
 use constant STEAM_LICENSE	=> $Cfg::Config{steam_license};
 use constant MANUAL_TMP_DIR   => Path::Class::Dir->new(AGENT_RUN_DIR, 'tmp');
+use constant SHARED_GAME_TMP_DIR   => Path::Class::Dir->new(AGENT_RUN_DIR, 'shared');
 use constant STEAMCMD_CLIENT_DIR => Path::Class::Dir->new(AGENT_RUN_DIR, 'steamcmd');
 use constant STEAMCMD_CLIENT_BIN =>
   Path::Class::File->new(STEAMCMD_CLIENT_DIR, 'steamcmd.exe');
@@ -143,6 +144,13 @@ if (!-d SCREEN_LOGS_DIR && !mkdir SCREEN_LOGS_DIR)
 	exit -1;
 }
 
+# Check the global shared games folder
+if (!-d SHARED_GAME_TMP_DIR && !mkdir SHARED_GAME_TMP_DIR)
+{
+	logger "Could not create " . SHARED_GAME_TMP_DIR . " directory $!.", 1;
+	exit -1;
+}
+
 # Rotate the log file
 if (-e AGENT_LOG_FILE)
 {
@@ -211,7 +219,7 @@ elsif ($no_startups != 1)
 			my (
 				$home_id,   $home_path,   $server_exe,
 				$run_dir,   $startup_cmd, $server_port,
-				$server_ip, $cpu, $nice, $preStart, $envVars
+				$server_ip, $cpu, $nice, $preStart, $envVars, $game_key
 			   ) = split(',', $_);
 			
 			if (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) ==
@@ -226,7 +234,7 @@ elsif ($no_startups != 1)
 			universal_start_without_decrypt(
 										 $home_id,   $home_path,   $server_exe,
 										 $run_dir,   $startup_cmd, $server_port,
-										 $server_ip, $cpu, $nice, $preStart, $envVars
+										 $server_ip, $cpu, $nice, $preStart, $envVars, $game_key
 										   );
 		}
 		close(STARTFILE);
@@ -423,7 +431,7 @@ sub create_screen_id
 sub create_screen_cmd
 {
 	my ($screen_id, $exec_cmd) = @_;
-	$exec_cmd = replace_OGP_Vars($screen_id, $exec_cmd);
+	$exec_cmd = replace_OGP_Env_Vars($screen_id, "", "", $exec_cmd);
 	return
 	  sprintf('screen -d -m -t "%1$s" -c ' . SCREENRC_FILE . ' -S %1$s %2$s',
 			  $screen_id, $exec_cmd);
@@ -435,24 +443,30 @@ sub create_screen_cmd_loop
 	my ($screen_id, $exec_cmd, $priority, $affinity, $envVars) = @_;
 	my $server_start_batfile = $screen_id . "_startup_scr.bat";
 	
-	$exec_cmd = replace_OGP_Vars($screen_id, $exec_cmd);
+	$exec_cmd = replace_OGP_Env_Vars($screen_id, "", "", $exec_cmd);
 	
 	# Create batch file that will launch the process and store PID which will be used for killing later
 	open (SERV_START_BAT_SCRIPT, '>', $server_start_batfile);
 	
-	my $batch_server_command = ":TOP" . "\r\n";
+	my $batch_server_command = "\@echo off" . "\r\n"
+	. "setlocal EnableDelayedExpansion" . "\r\n"
+	. ":TOP" . "\r\n";
 	
 	if(defined $envVars && $envVars ne ""){
 		$batch_server_command .= $envVars;
 	}
 	
-	$batch_server_command .= "set starttime=%time%" . "\r\n"
+	$batch_server_command .= "set STARTTIME=%TIME: =0%" . "\r\n"
 	. "start " . $priority . " " . $affinity . " /wait " . $exec_cmd . "\r\n"
-	. "set endtime=%time%" . "\r\n" 
-	. "set /a secs=%endtime:~6,2%" . "\r\n" 
-	. "set /a secs=%secs%-%starttime:~6,2%" . "\r\n"
+	. "set ENDTIME=%TIME: =0%" . "\r\n"
+	. "set \"end=!ENDTIME:%time:~8,1%=%%100)*100+1!\"  &  set \"start=!STARTTIME:%time:~8,1%=%%100)*100+1!\"" . "\r\n"
+	. "set /A \"elap=((((10!end:%time:~2,1%=%%100)*60+1!%%100)-((((10!start:%time:~2,1%=%%100)*60+1!%%100)\"" . "\r\n"
+	. "set /A \"cc=elap%%100+100,elap/=100,ss=elap%%60+100,elap/=60,mm=elap%%60+100,hh=elap/60+100\"" . "\r\n"
+	. "set hour=%hh:~1%" . "\r\n"
+	. "set minute=%mm:~1%" . "\r\n"
+	. "set second=%ss:~1%" . "\r\n"
 	. "if exist SERVER_STOPPED exit" . "\r\n"
-	. "if %secs% lss 15 exit" . "\r\n"
+	. "IF \"%hour%\" == \"00\" IF \"%minute%\" == \"00\" IF %second% lss 15 exit" . "\r\n"
 	. "goto TOP" . "\r\n";
 	
 	print SERV_START_BAT_SCRIPT $batch_server_command;
@@ -466,34 +480,47 @@ sub create_screen_cmd_loop
 
 }
 
-sub replace_OGP_Vars{
-	# This function replaces constants from game server XML Configs with OGP paths for Steam Auto Updates for example
-	my ($screen_id, $exec_cmd) = @_;
-	my $screen_id_for_txt_update = substr ($screen_id, rindex($screen_id, '_') + 1);
-	my $steamInsFile = $screen_id_for_txt_update . "_install.txt";
-	my $steamCMDPath = STEAMCMD_CLIENT_DIR;
-	my $fullPath = Path::Class::File->new($steamCMDPath, $steamInsFile);
+sub replace_OGP_Env_Vars{
+	# This function replaces constants from environment variables set in the XML
+	my ($screen_id, $homeid, $homepath, $exec_cmd, $game_key) = @_;
 	
-	my $windows_steamCMDPath= clean(`cygpath -wa $steamCMDPath`);
-	$windows_steamCMDPath =~ s#/#\\#g;
+	# Handle steam specific replacements
+	if(defined $screen_id && $screen_id ne ""){
+		my $screen_id_for_txt_update = substr ($screen_id, rindex($screen_id, '_') + 1);
+		my $steamInsFile = $screen_id_for_txt_update . "_install.txt";
+		my $steamCMDPath = STEAMCMD_CLIENT_DIR;
+		my $fullPath = Path::Class::File->new($steamCMDPath, $steamInsFile);
+		
+		my $windows_steamCMDPath= clean(`cygpath -wa $steamCMDPath`);
+		$windows_steamCMDPath =~ s#/#\\#g;
+		
+		# If the install file exists, the game can be auto updated, else it will be ignored by the game for improper syntax
+		# To generate the install file, the "Install/Update via Steam" button must be clicked on at least once!
+		if(-e $fullPath){
+			$exec_cmd =~ s/{OGP_STEAM_CMD_DIR}/$windows_steamCMDPath/g;
+			$exec_cmd =~ s/{STEAMCMD_INSTALL_FILE}/$steamInsFile/g;
+		}
+	}
+
+	# Handle home directory replacement
+	if(defined $homepath && $homepath ne ""){
+		$exec_cmd =~ s/{OGP_HOME_DIR}/$homepath/g;
+	}
 	
-	# If the install file exists, the game can be auto updated, else it will be ignored by the game for improper syntax
-	# To generate the install file, the "Install/Update via Steam" button must be clicked on at least once!
-	if(-e $fullPath){
-		$exec_cmd =~ s/{OGP_STEAM_CMD_DIR}/$windows_steamCMDPath/g;
-		$exec_cmd =~ s/{STEAMCMD_INSTALL_FILE}/$steamInsFile/g;
+	# Handle global game shared directory replacement
+	if(defined $game_key && $game_key ne ""){
+		my $readable_game_key = lc(substr($game_key, 0, rindex($game_key,"_")));
+		my $shared_path = Path::Class::Dir->new(SHARED_GAME_TMP_DIR, $readable_game_key);
+		# Create the folder if it doesn't exist
+		if (!-d $shared_path && !mkdir $shared_path)
+		{
+			logger "Could not create " . $shared_path . " directory $!.", 1;
+		}
+		
+		$exec_cmd =~ s/{OGP_GAME_SHARED_DIR}/$shared_path/g;
 	}
 	
 	return $exec_cmd;
-}
-
-sub replace_OGP_Env_Vars{
-	# This function replaces constants from environment variables set in the XML
-	my ($homeid, $homepath, $strToReplace) = @_;
-
-	$strToReplace =~ s/{OGP_HOME_DIR}/$homepath/g;
-	
-	return $strToReplace;
 }
 
 sub encode_list
@@ -640,11 +667,8 @@ sub universal_start_without_decrypt
 {
 	my (
 		$home_id, $home_path, $server_exe, $run_dir, $startup_cmd,
-		$server_port, $server_ip, $cpu,	$nice, $preStart, $envVars
+		$server_port, $server_ip, $cpu,	$nice, $preStart, $envVars, $game_key
 	   ) = @_;
-	   
-	# Replace any {OGP_HOME_DIR} in the $start_cmd with the server's home directory path
-	$startup_cmd = replace_OGP_Env_Vars($home_id, $home_path, $startup_cmd);
 	   
 	if (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1)
 	{
@@ -690,7 +714,7 @@ sub universal_start_without_decrypt
 		my @prestartenvvars = split /[\r\n]+/, $envVars;
 		my $envVarStr = "";
 		foreach my $line (@prestartenvvars) {
-			$line = replace_OGP_Env_Vars($home_id, $home_path, $line);
+			$line = replace_OGP_Env_Vars("", $home_id, $home_path, $line);
 			if($line ne ""){
 				logger "Configuring environment variable: $line";
 				$envVarStr .= "$line\r\n";
@@ -705,6 +729,9 @@ sub universal_start_without_decrypt
 	}
 
 	my $screen_id = create_screen_id(SCREEN_TYPE_HOME, $home_id);
+	
+	# Replace any OGP variables
+	$startup_cmd = replace_OGP_Env_Vars($screen_id, $home_id, $home_path, $startup_cmd, $game_key);
 
 	# Create affinity and priority strings
 	my $priority;
@@ -1027,6 +1054,8 @@ sub stop_server_without_decrypt
 	my ($home_id, $server_ip, $server_port, $control_protocol,
 		$control_password, $control_type, $home_path) = @_;
 		
+	my $usedProtocolToStop = 0;
+		
 	my $startup_file = Path::Class::File->new(GAME_STARTUP_DIR, "$server_ip-$server_port");
 	
 	if (-e $startup_file)
@@ -1076,6 +1105,7 @@ sub stop_server_without_decrypt
 
 			my $rconCommand = "quit";
 			$rcon->execute($rconCommand);
+			$usedProtocolToStop = 1;
 		}
 		elsif ($control_protocol eq "rcon2")
 		{
@@ -1089,6 +1119,24 @@ sub stop_server_without_decrypt
 
 			my $rconCommand = "quit";
 			$rcon2->run($rconCommand);
+			$usedProtocolToStop = 1;
+		}
+		elsif ($control_protocol eq "armabe")
+		{
+			use ArmaBE::ArmaBE;
+			my $armabe = new ArmaBE(
+								  hostname => $server_ip,
+								  port	 => $server_port, # Uses server port for now (Arma 2), Arma 3 BE uses a different, user definable port
+								  password => $control_password,
+								  timeout  => 2
+								 );
+
+			my $rconCommand = "#shutdown";
+			my $armabe_result = $armabe->run($rconCommand);
+			if ($armabe_result) {
+				logger "ArmaBE Shutdown command sent successfully";
+				$usedProtocolToStop = 1;
+			}
 		}
 		system('screen -wipe > /dev/null 2>&1');
 	}
@@ -1098,6 +1146,28 @@ sub stop_server_without_decrypt
 		my $screen_id = create_screen_id(SCREEN_TYPE_HOME, $home_id);
 		system("cmd /C taskkill /f /fi 'PID eq $screen_pid' /T");
 		system('screen -wipe > /dev/null 2>&1');
+	}
+		
+	# Gives the server time to shutdown with rcon in case it takes a while for the server to shutdown (arma for example) before we forcefully kill it
+	if ($usedProtocolToStop == 1){
+		my $serverIsRunning = (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1);
+		my $timeWaited = 0;
+		my $maxWaitTime = 5;
+			
+		# Maximum time to wait can now be configured as a preference
+		if(defined($Cfg::Preferences{protocol_shutdown_waittime}) && $Cfg::Preferences{protocol_shutdown_waittime} =~ /^\d+?$/){
+			$maxWaitTime = $Cfg::Preferences{protocol_shutdown_waittime};
+		}
+		
+		while ($serverIsRunning && $timeWaited < $maxWaitTime) {
+			select(undef, undef, undef, 0.25); # Sleeps for 250ms
+			
+			# Add to time waited
+			$timeWaited += 0.25;
+			
+			# Recheck if server is running
+			$serverIsRunning = (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1);
+		}
 	}
 	
 	if (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1)
@@ -1164,24 +1234,37 @@ sub send_rcon_command
 			my $encoded_content = encode_list(@modedlines);
 			return "1;" . $encoded_content;
 		}
-		else
-		{		
-			if ($control_protocol eq "rcon2")
-			{
-				use KKrcon::HL2;
-				my $rcon2 = new HL2(
-									  hostname => $server_ip,
-									  port	 => $server_port,
-									  password => $control_password,
-									  timeout  => 2
-									 );
-				
-				logger "Sending RCON command to $server_ip:$server_port: \n $rconCommand \n  .";
-						
-				my(@modedlines) = $rcon2->run($rconCommand);
-				my $encoded_content = encode_list(@modedlines);
-				return "1;" . $encoded_content;
-			}
+		elsif ($control_protocol eq "rcon2")
+		{
+			use KKrcon::HL2;
+			my $rcon2 = new HL2(
+								  hostname => $server_ip,
+								  port	 => $server_port,
+								  password => $control_password,
+								  timeout  => 2
+								 );
+			
+			logger "Sending RCON command to $server_ip:$server_port: \n $rconCommand \n  .";
+					
+			my(@modedlines) = $rcon2->run($rconCommand);
+			my $encoded_content = encode_list(@modedlines);
+			return "1;" . $encoded_content;
+		}
+		elsif ($control_protocol eq "armabe")
+		{
+			use ArmaBE::ArmaBE;
+			my $armabe = new ArmaBE(
+								  hostname => $server_ip,
+								  port	 => $server_port, # Uses server port for now (Arma 2), Arma 3 BE uses a different, user definable port
+								  password => $control_password,
+								  timeout  => 2
+								 );
+			
+			logger "Sending RCON command to $server_ip:$server_port: \n $rconCommand \n  .";
+					
+			my(@modedlines) = $armabe->run($rconCommand);
+			my $encoded_content = encode_list(@modedlines);
+			return "1;" . $encoded_content;
 		}
 	}
 	else
@@ -1546,7 +1629,7 @@ sub run_before_start_commands
 		if (defined $envVars && $envVars ne ""){
 			my @prestartenvvars = split /[\r\n]+/, $envVars;
 			foreach my $line (@prestartenvvars) {
-				$line = replace_OGP_Env_Vars($server_id, $homedir, $line);
+				$line = replace_OGP_Env_Vars("", $server_id, $homedir, $line);
 				if($line ne ""){
 					logger "Configuring environment variable: $line";
 					system($line);
@@ -1763,7 +1846,7 @@ sub steam_cmd
 ### @return 0 In error case.
 sub steam_cmd_without_decrypt
 {
-	my ($home_id, $home_path, $mod, $modname, $betaname, $betapwd, $user, $pass, $guard, $exec_folder_path, $exec_path, $precmd, $postcmd, $cfg_os) = @_;
+	my ($home_id, $home_path, $mod, $modname, $betaname, $betapwd, $user, $pass, $guard, $exec_folder_path, $exec_path, $precmd, $postcmd, $cfg_os, $filesToLockUnlock, $arch_bits) = @_;
 	
 	# Creates home path if it doesn't exist
 	if ( check_b4_chdir($home_path) != 0)
@@ -1789,6 +1872,12 @@ sub steam_cmd_without_decrypt
 	open  FILE, '>', $installtxt;
 	print FILE "\@ShutdownOnFailedCommand 1\n";
 	print FILE "\@NoPromptForPassword 1\n";
+	
+	# Handle requested SteamCMD architecture
+	if(defined $arch_bits && $arch_bits ne ""){
+		print FILE "\@sSteamCmdForcePlatformBitness " . $arch_bits . "\n";
+	}
+	
 	if($guard ne '')
 	{
 		print FILE "set_steam_guard_code $guard\n";
@@ -1911,7 +2000,7 @@ sub automatic_steam_update
 	my ($home_id, $game_home, $server_ip, $server_port, $exec_path, $exec_folder_path,
 		$control_protocol, $control_password, $control_type,
 		$appId, $modname, $betaname, $betapwd, $user, $pass, $guard, $precmd, $postcmd, $cfg_os, $filesToLockUnlock,
-		$startup_cmd, $cpu, $nice, $preStart, $envVars) = &decrypt_params(@_);
+		$startup_cmd, $cpu, $nice, $preStart, $envVars, $game_key, $arch_bits) = &decrypt_params(@_);
 
 	# Is the server currently running? if it is, we'll try to start it after updating.
 	my $isServerRunning = is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1 ? 1 : 0;
@@ -1937,7 +2026,7 @@ sub automatic_steam_update
 	}
 
 	# steam_cmd: Returns 0 if the update failed, in which case, don't try starting the server - because we may have an incomplete or corrupt installation.
-	if (steam_cmd_without_decrypt($home_id, $game_home, $appId, $modname, $betaname, $betapwd, $user, $pass, $guard, $exec_folder_path, $exec_path, $precmd, $postcmd, $cfg_os, $filesToLockUnlock) == 0)
+	if (steam_cmd_without_decrypt($home_id, $game_home, $appId, $modname, $betaname, $betapwd, $user, $pass, $guard, $exec_folder_path, $exec_path, $precmd, $postcmd, $cfg_os, $filesToLockUnlock, $arch_bits) == 0)
 	{
 		logger("Failed to start steam_cmd for server $home_id.");
 		return -8;
@@ -1952,7 +2041,7 @@ sub automatic_steam_update
 				if (is_screen_running_without_decrypt(SCREEN_TYPE_UPDATE, $home_id) == 0)
 				{
 
-					if (universal_start_without_decrypt($home_id, $game_home, $exec_path, $exec_folder_path, $startup_cmd, $server_port, $server_ip, $cpu, $nice, $preStart, $envVars) != 1)
+					if (universal_start_without_decrypt($home_id, $game_home, $exec_path, $exec_folder_path, $startup_cmd, $server_port, $server_ip, $cpu, $nice, $preStart, $envVars, $game_key) != 1)
 					{
 						logger("Failed to start server $home_id after automatic update.");
 						return -7;
@@ -2344,14 +2433,14 @@ sub restart_server_without_decrypt
 {
 	my ($home_id, $server_ip, $server_port, $control_protocol,
 		$control_password, $control_type, $home_path, $server_exe, $run_dir,
-		$cmd, $cpu, $nice, $preStart, $envVars) = @_;
+		$cmd, $cpu, $nice, $preStart, $envVars, $game_key) = @_;
 
 	if (stop_server_without_decrypt($home_id, $server_ip, 
 									$server_port, $control_protocol,
 									$control_password, $control_type, $home_path) == 0)
 	{
 		if (universal_start_without_decrypt($home_id, $home_path, $server_exe, $run_dir,
-											$cmd, $server_port, $server_ip, $cpu, $nice, $preStart, $envVars) == 1)
+											$cmd, $server_port, $server_ip, $cpu, $nice, $preStart, $envVars, $game_key) == 1)
 		{
 			return 1;
 		}
@@ -2449,7 +2538,7 @@ sub ftp_mgr
 					for (keys @users) {
 						if($users[$_]->{'Name'} eq $login)
 						{
-							splice($data->{'FileZillaServer'}->{'Users'}->{'User'},$_,1);
+							delete $data->{'FileZillaServer'}->{'Users'}->{'User'}[$_];
 							last;
 						}
 					}
