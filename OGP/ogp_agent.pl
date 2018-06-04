@@ -25,7 +25,7 @@ use strict;
 
 use Cwd;			 # Fast way to get the current directory
 use lib getcwd();
-use Frontier::Daemon::Forking;	# Forking XML-RPC server
+use Frontier::Daemon::OGP::Forking;	# Forking XML-RPC server
 use File::Copy;				   # Simple file copy functions
 use File::Copy::Recursive
   qw(fcopy rcopy dircopy fmove rmove dirmove pathempty pathrmdir)
@@ -276,7 +276,7 @@ if(-e Path::Class::File->new(FD_DIR, 'Settings.pm'))
 	}
 }
 
-my $d = Frontier::Daemon::Forking->new(
+my $d = Frontier::Daemon::OGP::Forking->new(
 			 methods => {
 				 is_screen_running				=> \&is_screen_running,
 				 universal_start				=> \&universal_start, 
