@@ -3997,10 +3997,11 @@ sub steam_workshop_without_decrypt
 		$regex, $mods_backreference_index,
 		$variable, $place_after, $mod_string, 
 		$string_separator, $config_file_path, 
-		$post_install, $mod_names_list) = @_;
+		$post_install, $mod_names_list,
+		$anonymous_login, $user, $pass) = @_;
 	
 	# Creates mods path if it doesn't exist
-	if (check_b4_chdir($mods_full_path) != 0)
+	if ( check_b4_chdir($mods_full_path) != 0)
 	{
 		return -1;
 	}
@@ -4009,7 +4010,6 @@ sub steam_workshop_without_decrypt
 	my $steam_binary = STEAMCMD_CLIENT_BIN;
 	my $installSteamFile = $screen_id . "_workshop.txt";	
 	my $installtxt = Path::Class::File->new(STEAMCMD_CLIENT_DIR, $installSteamFile);
-	
 	my $windows_mods_path = clean(`cygpath -wa $mods_full_path`);
 	
 	my @workshop_mods = split /,/, $mods_list;
@@ -4017,7 +4017,14 @@ sub steam_workshop_without_decrypt
 	open  FILE, '>', $installtxt;
 	print FILE "\@ShutdownOnFailedCommand 1\n";
 	print FILE "\@NoPromptForPassword 1\n";
-	print FILE "login anonymous\n";
+	if($anonymous_login eq "0")
+	{
+		print FILE "login $user $pass\n";
+	}
+	else
+	{
+		print FILE "login anonymous\n";
+	}
 	print FILE "force_install_dir \"$windows_mods_path\"\n";
 	foreach my $workshop_mod (@workshop_mods)
 	{
@@ -4025,10 +4032,7 @@ sub steam_workshop_without_decrypt
 	}
 	print FILE "exit\n";
 	close FILE;
-	
-	my $log_file = Path::Class::File->new(SCREEN_LOGS_DIR, "screenlog.$screen_id");
-	backup_home_log($home_id, $log_file);
-	
+		
 	my $precmd = "";
 	my $postcmd = "";
 	
@@ -4040,7 +4044,8 @@ sub steam_workshop_without_decrypt
 	
 	my $windows_installtxt = clean(`cygpath -wa $installtxt`);
 	$windows_installtxt =~ s/\\/\\\\/g;
-	my @installcmds = ("$steam_binary +runscript ".$windows_installtxt." +exit");
+	
+	my @installcmds = ("$steam_binary +runscript $windows_installtxt +exit");
 	
 	my $bash_scripts_path = MANUAL_TMP_DIR . "/home_id_" . $home_id;
 	
@@ -4098,7 +4103,7 @@ sub	generate_post_install_scripts
 	
 	$post_install_scripts .= 'if [ ! -e $config_file_path ];then'."\n".
 							 '	if [ ! -d "$(dirname $config_file_path)" ];then mkdir -p "$(dirname $config_file_path)";fi'."\n".
-							 '	echo -e "${place_after}${variable}" > $config_file_path'."\n".
+							 '	echo -e "${place_after}\n${variable}" > $config_file_path'."\n".
 							 'fi'."\n".
 							 'i=0'."\n".
 							 'for mod_id in "${workshop_mod_id[@]}"'."\n".
@@ -4131,10 +4136,11 @@ sub	generate_post_install_scripts
 							 '			echo -e "${file_content}${variable}${mod_string[$i]}">"$config_file_path"'."\n".
 							 '		else'."\n".
 							 '			if [ -z "${file_content##*${place_after}*}" ];then'."\n".
-							 '				new_var="${place_after}${variable}${mod_string[$i]}"'."\n".
-							 '				echo -e "${file_content/$place_after/$new_var}">"$config_file_path"'."\n".
+							 '				new_var="${variable}${mod_string[$i]}"'."\n".
+							 '				place_after_esc=$(echo -e "$place_after"|sed -e \'s/[]\\/$*.^[]/\\\\&/g\')'."\n".
+							 '				echo -e "$file_content"|sed \'/\'$place_after_esc\'/a \'$new_var>"$config_file_path"'."\n".
 							 '			else'."\n".
-							 '				echo -e "${file_content}${place_after}${variable}${mod_string[$i]}">"$config_file_path"'."\n".
+							 '				echo -e "${file_content}${place_after}\n${variable}${mod_string[$i]}">"$config_file_path"'."\n".
 							 '			fi'."\n".
 							 '		fi'."\n".
 							 '	fi'."\n".
