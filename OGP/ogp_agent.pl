@@ -1348,8 +1348,23 @@ sub dirlistfm
 		 $size, $atime, $mtime, $ctime, $blksize, $blocks
 		) = stat($_);
 		
-		$uid = getpwuid($uid);
-		$gid = getgrgid($gid);
+		if(defined $uid)
+		{
+			$uid = getpwuid($uid);
+		}
+		else
+		{
+			$uid = '';
+		}
+		
+		if(defined $gid)
+		{
+			$gid = getgrgid($gid);
+		}
+		else
+		{
+			$gid = '';
+		}
 
 		#This if else logic determines what it is, File, Directory, other	
 		if (-T $_)
