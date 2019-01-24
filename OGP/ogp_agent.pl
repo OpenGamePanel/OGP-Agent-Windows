@@ -3532,6 +3532,7 @@ sub scheduler_del_task
 {
 	return "Bad Encryption Key" unless(decrypt_param(pop(@_)) eq "Encryption checking OK");
 	my $name = decrypt_param(@_);
+	my @cronJobIDs = split(',', $name);
 	if( scheduler_read_tasks() == -1 )
 	{
 		return -1;
@@ -3540,7 +3541,7 @@ sub scheduler_del_task
 	if(open(TASKS, '>', SCHED_TASKS))
 	{
 		foreach my $task ( @entries ) {
-			next if $task->{args}[0] eq $name;
+			next if ( grep { $_ eq $task->{args}[0]} @cronJobIDs );
 			next unless $task->{args}[0] =~ /task_[0-9]*/;
 			if(defined $task->{args}[1])
 			{
@@ -3565,7 +3566,7 @@ sub scheduler_del_task
 		$cron->run( {detach=>1, pid_file=>SCHED_PID} );
 		return 1;
 	}
-	logger "Cannot open file " . SCHED_TASKS . " for deleting task id: $name ( $! )",1;
+	logger "Cannot open file " . SCHED_TASKS . " for deleting task(s) id: $name ( $! )",1;
 	return -1;
 }
 
