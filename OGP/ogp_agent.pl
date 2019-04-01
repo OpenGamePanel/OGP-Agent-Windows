@@ -1084,9 +1084,16 @@ sub stop_server_without_decrypt
 	}
 		
 	my $screen_id = create_screen_id(SCREEN_TYPE_HOME, $home_id);
-	my $get_screen_pid = "screen -list | grep $screen_id | cut -f1 -d'.' | sed '".'s/\W//g'."'";
-	my $screen_pid = `$get_screen_pid`; 
+	my $get_screen_pid = "screen -list | grep $screen_id | cut -f1 -d'.' | sed '".'s/\W//g'."' | head -1";
+	my $screen_pid = `$get_screen_pid`;	 
+	
 	chomp $screen_pid;
+	
+	my $windows_pid_command = "ps -W | grep '" . $screen_pid . "' | head -1 | awk '{print \$4}'";
+	my $windows_pid = `$windows_pid_command`;
+	
+	chomp $windows_pid;
+	
 	# Some validation checks for the variables.
 	if ($server_ip =~ /^\s*$/ || $server_port < 0 || $server_port > 65535)
 	{
@@ -1147,7 +1154,7 @@ sub stop_server_without_decrypt
 	{
 		logger "Control protocol not supported. Using kill signal to stop the server.";
 		my $screen_id = create_screen_id(SCREEN_TYPE_HOME, $home_id);
-		system("cmd /C taskkill /f /fi 'PID eq $screen_pid' /T");
+		system("cmd /C taskkill /f /fi 'PID eq $windows_pid' /T");
 		system('screen -wipe > /dev/null 2>&1');
 	}
 		
@@ -1176,7 +1183,7 @@ sub stop_server_without_decrypt
 	if (is_screen_running_without_decrypt(SCREEN_TYPE_HOME, $home_id) == 1)
 	{
 		logger "Control protocol not responding. Using kill signal.";
-		system("cmd /C taskkill /f /fi 'PID eq $screen_pid' /T");
+		system("cmd /C taskkill /f /fi 'PID eq $windows_pid' /T");
 		system('screen -wipe > /dev/null 2>&1');
 		logger "Server ID $home_id:Stopped server running on $server_ip:$server_port.";
 		return 0;
