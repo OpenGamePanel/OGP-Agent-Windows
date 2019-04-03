@@ -510,6 +510,12 @@ sub replace_OGP_Env_Vars{
 		$exec_cmd =~ s/{OGP_HOME_DIR}/$homepath/g;
 	}
 	
+	# Handle windows directory replacement
+	if(defined $homepath && $homepath ne ""){
+		my $windows_home_path = clean(`cygpath -wa $homepath`);
+		$exec_cmd =~ s/{OGP_HOME_DIR_WINDOWS}/$windows_home_path/g;
+	}
+	
 	# Handle global game shared directory replacement
 	if(defined $game_key && $game_key ne ""){
 		my $readable_game_key = lc(substr($game_key, 0, rindex($game_key,"_")));
@@ -1632,21 +1638,24 @@ sub run_before_start_commands
 	my ($server_id, $homedir, $beforestartcmd, $envVars) = @_;
 	
 	if ($homedir ne "" && $server_id ne ""){
+		my $windows_home_path = clean(`cygpath -wa $homedir`);
+		
 		# Run any prestart scripts
 		if (defined $beforestartcmd && $beforestartcmd ne "")
 		{		
 			logger "Running pre-start XML commands before starting server ID $server_id with a home directory of $homedir.";
 			my @prestartcmdlines = split /[\r\n]+/, $beforestartcmd;
-			my $prestartcmdfile = $homedir."/".'prestart_ogp.bat';
+			my $prestartcmdfile = $windows_home_path . '\prestart_ogp.bat';
 			open  FILE, '>', $prestartcmdfile;
-			print FILE "cd \"$homedir\"\r\n";
+			print FILE "cd \"$windows_home_path\"\r\n";
 			foreach my $line (@prestartcmdlines) {
+				$line = replace_OGP_Env_Vars("", $server_id, $homedir, $line);
 				print FILE "$line\r\n";
 			}
 			print FILE "del \"$prestartcmdfile\"\r\n";
 			close FILE;
 			chmod 0755, $prestartcmdfile;
-			system("cmd /Q /C \"$prestartcmdfile\"");
+			system("cmd /Q /C start \"$prestartcmdfile\"");
 		}
 		
 		
