@@ -1723,11 +1723,17 @@ sub check_b4_chdir
 	{
 		logger "$path does not exist yet. Trying to create it...";
 
-		if (!mkpath($path))
+		eval { mkpath($path); 1 } or logger "Error creating $path with Perl mkpath command. Errno: $! - Trying again with sudo...";
+
+		if (!-e $path)
 		{
-			logger "Error creating $path . Errno: $!";
-			return -1;
+			sudo_exec_without_decrypt('mkdir -p ' . $path);
 		}
+		
+		if (!-e $path)
+		{
+			return -1;
+		}		
 	}
 	
 	if (!chdir $path)
