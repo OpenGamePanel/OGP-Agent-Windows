@@ -76,6 +76,8 @@ use constant GAME_STARTUP_DIR =>
   Path::Class::Dir->new(AGENT_RUN_DIR, 'startups');
 use constant SCREENRC_FILE =>
   Path::Class::File->new(AGENT_RUN_DIR, 'ogp_screenrc');
+use constant SCREENRC_FILE_BK =>
+  Path::Class::File->new(AGENT_RUN_DIR, 'ogp_screenrc_bk');
 use constant SCREEN_TYPE_HOME   => "HOME";
 use constant SCREEN_TYPE_UPDATE => "UPDATE";
 use constant FD_DIR => Path::Class::Dir->new(AGENT_RUN_DIR, 'FastDownload');
@@ -135,6 +137,13 @@ sub logger
 	print LOGFILE "$logcmd" or die("Failed to write to log file.");
 	flock(LOGFILE, LOCK_UN) or die("Failed to unlock log file.");
 	close(LOGFILE) or die("Failed to close log file.");
+}
+
+# If for some reason the screenrc file doesn't exist, restore it from the backup copy
+# I've seen this happen a few times
+if (! -e SCREENRC_FILE)
+{
+	copy(SCREENRC_FILE_BK,SCREENRC_FILE);
 }
 
 # Check the screen logs folder
