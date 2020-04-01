@@ -3181,16 +3181,20 @@ sub take_ownership{
 			$takeownCommand = 'takeown /U cyg_server /f "' . $windows_home_path . '" /r >/dev/null 2>&1';
 			$chmodCommand = 'chmod 775 -R "' . $windows_home_path . '" >/dev/null 2>&1';
 			$icaclsStr = 'icacls "' . $windows_home_path . '" /grant cyg_server:\\(OI\\)\\(CI\\)F /T >/dev/null 2>&1';
+			$icaclsAdminGroupFullPerms = 'icacls "' . $windows_home_path . '" /grant administrators:F /T >/dev/null 2>&1';
 			
 			if(defined $action && $action eq "str"){
 				$fullCommands .= $takeownCommand . "\n";
 				$fullCommands .= $chmodCommand . "\n";
 				$fullCommands .= $icaclsStr . "\n";
+				$fullCommands .= $icaclsAdminGroupFullPerms . "\n";
 			}else{
 				logger "Running icacls command: $icaclsStr";
+				logger "Running icacls admin group command: $icaclsAdminGroupFullPerms";
 				system($takeownCommand);
 				system($chmodCommand);
 				system($icaclsStr);
+				system($icaclsAdminGroupFullPerms);
 			}
 		}		
 	}
