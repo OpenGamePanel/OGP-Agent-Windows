@@ -3156,6 +3156,7 @@ sub take_ownership{
 	my ($home_path, $action) = @_;
 	
 	my $icaclsStr = "";
+	my $icaclsAdminGroupFullPerms = "";
 	my $takeownCommand = "";
 	my $chmodCommand = "";
 	my $fullCommands = "";
