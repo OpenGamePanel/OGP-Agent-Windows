@@ -88,6 +88,7 @@ use constant FD_PID_FILE => Path::Class::File->new(FD_DIR, 'fd.pid');
 use constant SCHED_PID => Path::Class::File->new(AGENT_RUN_DIR, 'scheduler.pid');
 use constant SCHED_TASKS => Path::Class::File->new(AGENT_RUN_DIR, 'scheduler.tasks');
 use constant SCHED_LOG_FILE => Path::Class::File->new(AGENT_RUN_DIR, 'scheduler.log');
+use constant USER_RUNNING_SCRIPT => getlogin || getpwuid($<) || "cyg_server";
 
 my $no_startups	= 0;
 my $clear_startups = 0;
@@ -173,6 +174,8 @@ if (-e AGENT_LOG_FILE)
 	move(AGENT_LOG_FILE, AGENT_LOG_FILE . ".bak");
 	logger "New log file created";
 }
+
+logger "User running agent script is: " . USER_RUNNING_SCRIPT;
 
 if (check_steam_cmd_client() == -1)
 {
@@ -3167,7 +3170,7 @@ sub take_ownership{
 		logger "Running takeown commands on path of $home_path and $windows_home_path";
 		
 		#cygwin path handling
-		$takeownCommand = 'takeown /U cyg_server /f "' . $home_path . '" /r >/dev/null 2>&1';
+		$takeownCommand = 'takeown /U ' . USER_RUNNING_SCRIPT . ' /f "' . $home_path . '" /r >/dev/null 2>&1';
 		$chmodCommand = 'chmod 775 -R "' . $home_path . '" >/dev/null 2>&1';
 		if(defined $action && $action eq "str"){
 			$fullCommands .= $takeownCommand . "\n";
@@ -3179,9 +3182,9 @@ sub take_ownership{
 		
 		# Windows path handling
 		if(defined $windows_home_path && $windows_home_path ne ""){
-			$takeownCommand = 'takeown /U cyg_server /f "' . $windows_home_path . '" /r >/dev/null 2>&1';
+			$takeownCommand = 'takeown /U ' . USER_RUNNING_SCRIPT . ' /f "' . $windows_home_path . '" /r >/dev/null 2>&1';
 			$chmodCommand = 'chmod 775 -R "' . $windows_home_path . '" >/dev/null 2>&1';
-			$icaclsStr = 'icacls "' . $windows_home_path . '" /grant cyg_server:\\(OI\\)\\(CI\\)F /T >/dev/null 2>&1';
+			$icaclsStr = 'icacls "' . $windows_home_path . '" /grant ' . USER_RUNNING_SCRIPT . ':\\(OI\\)\\(CI\\)F /T >/dev/null 2>&1';
 			$icaclsAdminGroupFullPerms = 'icacls "' . $windows_home_path . '" /grant administrators:F /T >/dev/null 2>&1';
 			
 			if(defined $action && $action eq "str"){
