@@ -4346,3 +4346,7 @@ sub get_setting_using_api
 	
 	return -1;
 }
+
+sub is_integer {
+   defined $_[0] && $_[0] =~ /^[+-]?\d+$/;
+}
