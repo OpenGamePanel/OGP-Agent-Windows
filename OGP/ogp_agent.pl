@@ -59,6 +59,8 @@ use constant AGENT_IP	   => $Cfg::Config{listen_ip};
 use constant AGENT_LOG_FILE => $Cfg::Config{logfile};
 use constant AGENT_PORT	 => $Cfg::Config{listen_port};
 use constant AGENT_VERSION  => $Cfg::Config{version};
+use constant WEB_ADMIN_API_KEY  => $Cfg::Config{web_admin_api_key};
+use constant WEB_API_URL => $Cfg::Config{web_api_url};
 use constant SCREEN_LOG_LOCAL  => $Cfg::Preferences{screen_log_local};
 use constant DELETE_LOGS_AFTER  => $Cfg::Preferences{delete_logs_after};
 use constant AGENT_PID_FILE =>
@@ -4318,6 +4320,24 @@ sub get_workshop_mods_info()
 		}
 		closedir(MODS_INFO_DIR);
 		return "1;".encode_list(@mods_info);
+	}
+	
+	return -1;
+}
+
+sub get_setting_using_api
+{
+	my ($setting_name) = @_;
+	
+	if(defined WEB_API_URL && WEB_API_URL ne "" && defined WEB_ADMIN_API_KEY && WEB_ADMIN_API_KEY ne ""){
+		my $url = WEB_API_URL . "?setting/get&setting_name=" . $setting_name . "&token=" . WEB_ADMIN_API_KEY;
+		logger "URL is " . $url;
+		my $ua = LWP::UserAgent->new;
+		$ua->agent('Mozilla/5.0');
+		$ua->timeout(5);
+		$ua->ssl_opts( verify_hostname => 0 ,SSL_verify_mode => 0x00);
+		my $response = $ua->get($url);
+		return $response->decoded_content();
 	}
 	
 	return -1;
