@@ -61,6 +61,7 @@ use constant AGENT_PORT	 => $Cfg::Config{listen_port};
 use constant AGENT_VERSION  => $Cfg::Config{version};
 use constant WEB_ADMIN_API_KEY  => $Cfg::Config{web_admin_api_key};
 use constant WEB_API_URL => $Cfg::Config{web_api_url};
+use constant STEAM_DL_LIMIT => $Cfg::Config{steam_dl_limit};
 use constant SCREEN_LOG_LOCAL  => $Cfg::Preferences{screen_log_local};
 use constant DELETE_LOGS_AFTER  => $Cfg::Preferences{delete_logs_after};
 use constant AGENT_PID_FILE =>
@@ -1955,6 +1956,10 @@ sub steam_cmd_without_decrypt
 	# Handle requested SteamCMD architecture
 	if(defined $arch_bits && $arch_bits ne ""){
 		print FILE "\@sSteamCmdForcePlatformBitness " . $arch_bits . "\n";
+	}
+	
+	if(defined STEAM_DL_LIMIT && STEAM_DL_LIMIT ne "" && is_integer(STEAM_DL_LIMIT) && STEAM_DL_LIMIT > 0){
+		print FILE "set_download_throttle " . STEAM_DL_LIMIT . "\n";
 	}
 	
 	if($guard ne '')
