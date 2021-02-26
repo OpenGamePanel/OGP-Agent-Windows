@@ -1693,11 +1693,11 @@ sub run_before_start_commands
 				$line = replace_OGP_Env_Vars("", $server_id, $homedir, $line);
 				print FILE "$line\r\n";
 			}
-			print FILE "del \"$prestartcmdfile\"\r\n";
 			print FILE "exit\r\n";
 			close FILE;
 			chmod 0755, $prestartcmdfile;
 			system("cmd /Q /C start \"$prestartcmdfile\"");
+			system("cmd /Q /C del \"$prestartcmdfile\"");
 		}
 		
 		
