@@ -1696,7 +1696,7 @@ sub run_before_start_commands
 			print FILE "exit\r\n";
 			close FILE;
 			chmod 0755, $prestartcmdfile;
-			system("cmd /Q /C start \"$prestartcmdfile\"");
+			system("cmd /Q /C start /wait \"$prestartcmdfile\"");
 			system("cmd /Q /C del \"$prestartcmdfile\"");
 		}
 		
