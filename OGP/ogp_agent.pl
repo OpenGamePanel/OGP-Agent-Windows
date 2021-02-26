@@ -867,8 +867,9 @@ sub universal_start_without_decrypt
 			deleteStoppedStatFile($home_path);
 			$cli_bin = create_screen_cmd_loop($screen_id, "$win_game_binary_dir\\$server_exe $startup_cmd", $priority, $affinity);
 		}else{
-			# Below line should only be used for launching non-auto restart game servers
+			# Below lines should only be used for launching non-auto restart game servers
 			$win_game_binary_dir =~ s/\\/\\\\/g;
+			$startup_cmd =~ s/\\/\\\\/g;  # Needs to be done on the startup_cmd as well in case it includes paths
 			
 			$cli_bin = create_screen_cmd($screen_id, "cmd /Q /C start $priority $affinity /WAIT $win_game_binary_dir\\\\$server_exe $startup_cmd");
 		}
