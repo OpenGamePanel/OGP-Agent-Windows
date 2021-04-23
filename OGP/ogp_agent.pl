@@ -1208,7 +1208,7 @@ sub stop_server_without_decrypt
 				}
 			);
 
-			my $rconCommand = "/stop";
+			my $rconCommand = "stop";
 			my $mc_result = $minecraft->command($rconCommand);
 			if ($mc_result) {
 				logger "Minecraft Shutdown command sent successfully";
