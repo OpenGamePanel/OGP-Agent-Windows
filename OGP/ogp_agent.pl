@@ -1243,6 +1243,7 @@ sub stop_server_without_decrypt
 			}
 		}
 		system('screen -wipe > /dev/null 2>&1');
+		system('screen -wipe ' . $screen_pid . ' > /dev/null 2>&1');
 	}
 	else
 	{
@@ -1250,6 +1251,7 @@ sub stop_server_without_decrypt
 		my $screen_id = create_screen_id(SCREEN_TYPE_HOME, $home_id);
 		system("cmd /C taskkill /f /fi 'PID eq $windows_pid' /T");
 		system('screen -wipe > /dev/null 2>&1');
+		system('screen -wipe ' . $screen_pid . ' > /dev/null 2>&1');
 	}
 		
 	# Gives the server time to shutdown with rcon in case it takes a while for the server to shutdown (arma for example) before we forcefully kill it
@@ -1279,6 +1281,7 @@ sub stop_server_without_decrypt
 		logger "Control protocol not responding. Using kill signal.";
 		system("cmd /C taskkill /f /fi 'PID eq $windows_pid' /T");
 		system('screen -wipe > /dev/null 2>&1');
+		system('screen -wipe ' . $screen_pid . ' > /dev/null 2>&1');
 		logger "Server ID $home_id:Stopped server running on $server_ip:$server_port.";
 		return 0;
 	}
