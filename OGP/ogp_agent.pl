@@ -180,6 +180,19 @@ if (-e AGENT_LOG_FILE)
 
 logger "User running agent script is: " . USER_RUNNING_SCRIPT;
 
+# Clear all screen sessions
+my $screen_pids_str = "screen -list | grep -E 'Detached|Remote|dead' | cut -f1 -d'.' | sed '".'s/\W//g'."'";
+my $screen_pids_res = `$screen_pids_str`;	 
+chomp $screen_pids_res;
+
+# Split the string into an array of lines
+my @screen_pids = split /\n/, $screen_pids_res;
+
+# Process each line
+foreach my $line (@screen_pids) {
+    system('screen -wipe ' . $line . ' > /dev/null 2>&1');
+}
+
 if (check_steam_cmd_client() == -1)
 {
 	print "ERROR: You must download and uncompress the new steamcmd package.";
