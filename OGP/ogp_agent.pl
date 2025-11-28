@@ -767,6 +767,8 @@ sub universal_start_without_decrypt
 	}else{
 		$preStart = "";
 	}
+
+	my $screen_id = create_screen_id(SCREEN_TYPE_HOME, $home_id);
 	
 	if(defined $envVars && $envVars ne ""){
 		# Get it in the format that the startup file can use
@@ -776,7 +778,7 @@ sub universal_start_without_decrypt
 		my @prestartenvvars = split /[\r\n]+/, $envVars;
 		my $envVarStr = "";
 		foreach my $line (@prestartenvvars) {
-			$line = replace_OGP_Env_Vars("", $home_id, $home_path, $line);
+			$line = replace_OGP_Env_Vars($screen_id, $home_id, $home_path, $line);
 			if($line ne ""){
 				logger "Configuring environment variable: $line";
 				$envVarStr .= "$line\r\n";
@@ -789,8 +791,6 @@ sub universal_start_without_decrypt
 	}else{
 		$envVars = "";
 	}
-
-	my $screen_id = create_screen_id(SCREEN_TYPE_HOME, $home_id);
 	
 	# Replace any OGP variables
 	$startup_cmd = replace_OGP_Env_Vars($screen_id, $home_id, $home_path, $startup_cmd, $game_key);
