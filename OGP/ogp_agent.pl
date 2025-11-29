@@ -1172,10 +1172,22 @@ sub stop_server_without_decrypt
 	
 	chomp $screen_pid;
 	
+	# One more check (happens if exactly one and only one screen session is running)
+	if ($screen_pid =~ /^\s*$/)
+	{
+		$get_screen_pid = "ls -A /home/cyg_server/.screen | grep $screen_id | cut -f1 -d'.' | sed '".'s/\W//g'."' | head -1";
+		$screen_pid = `$get_screen_pid`;
+		chomp $screen_pid;
+	}
+	
+	#logger "Screen pid is $screen_pid";
+	
 	my $windows_pid_command = "ps -W | grep '" . $screen_pid . "' | head -1 | awk '{print \$4}'";
 	my $windows_pid = `$windows_pid_command`;
 	
 	chomp $windows_pid;
+	
+	#logger "Windows pid is $screen_pid";
 	
 	# Some validation checks for the variables.
 	if ($server_ip =~ /^\s*$/ || $server_port < 0 || $server_port > 65535)
