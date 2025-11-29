@@ -97,9 +97,6 @@ my $no_startups	= 0;
 my $clear_startups = 0;
 our $log_std_out = 0;
 
-# Fix permissions on OGP files
-my $ownerShipAgentResults = take_ownership(AGENT_RUN_DIR);
-
 GetOptions(
 		   'no-startups'	=> \$no_startups,
 		   'clear-startups' => \$clear_startups,
@@ -180,6 +177,12 @@ if (-e AGENT_LOG_FILE)
 	move(AGENT_LOG_FILE, AGENT_LOG_FILE . ".bak");
 	logger "New log file created";
 }
+
+# Fix permissions on OGP files
+my $ownerShipAgentResults = take_ownership(AGENT_RUN_DIR);
+my $ownerShipAgentResults2 = take_ownership(AGENT_RUN_DIR . "/ogp_agent.pl");
+my $ogpFilesEntirePath = AGENT_RUN_DIR . "/../bin/ogp_agent";
+my $ownerShipAgentResultsFixesAgain = take_ownership($ogpFilesEntirePath);
 
 logger "User running agent script is: " . USER_RUNNING_SCRIPT;
 
@@ -3245,7 +3248,7 @@ sub take_ownership{
 		logger "Running takeown commands on path of $home_path and $windows_home_path";
 		
 		#cygwin path handling
-		$takeownCommand = 'takeown /U ' . USER_RUNNING_SCRIPT . ' /f "' . $home_path . '" /r >/dev/null 2>&1';
+		$takeownCommand = 'takeown /U ' . USER_RUNNING_SCRIPT . ' /S localhost /f "' . $home_path . '" /r >/dev/null 2>&1';
 		$chmodCommand = 'chmod 775 -R "' . $home_path . '" >/dev/null 2>&1';
 		if(defined $action && $action eq "str"){
 			$fullCommands .= $takeownCommand . "\n";
@@ -3257,7 +3260,7 @@ sub take_ownership{
 		
 		# Windows path handling
 		if(defined $windows_home_path && $windows_home_path ne ""){
-			$takeownCommand = 'takeown /U ' . USER_RUNNING_SCRIPT . ' /f "' . $windows_home_path . '" /r >/dev/null 2>&1';
+			$takeownCommand = 'takeown /U ' . USER_RUNNING_SCRIPT . ' /S localhost /f "' . $windows_home_path . '" /r >/dev/null 2>&1';
 			$chmodCommand = 'chmod 775 -R "' . $windows_home_path . '" >/dev/null 2>&1';
 			$icaclsStr = 'icacls "' . $windows_home_path . '" /grant ' . USER_RUNNING_SCRIPT . ':\\(OI\\)\\(CI\\)F /T >/dev/null 2>&1';
 			$icaclsAdminGroupFullPerms = 'icacls "' . $windows_home_path . '" /grant administrators:F /T >/dev/null 2>&1';
@@ -3268,8 +3271,10 @@ sub take_ownership{
 				$fullCommands .= $icaclsStr . "\n";
 				$fullCommands .= $icaclsAdminGroupFullPerms . "\n";
 			}else{
-				logger "Running icacls command: $icaclsStr";
-				logger "Running icacls admin group command: $icaclsAdminGroupFullPerms";
+				#logger "Running takeown command: $takeownCommand";
+				#logger "Running icacls command: $icaclsStr";
+				#logger "Running icacls admin group command: $icaclsAdminGroupFullPerms";
+				#logger "Running chmod command: $chmodCommand";
 				system($takeownCommand);
 				system($chmodCommand);
 				system($icaclsStr);
