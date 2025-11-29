@@ -179,10 +179,15 @@ if (-e AGENT_LOG_FILE)
 }
 
 # Fix permissions on OGP files
+my $screenDir = AGENT_RUN_DIR . "/../home/cyg_server/.screen";
+check_b4_chdir($screenDir);
+take_ownership($screenDir);
+chmod 0700, AGENT_RUN_DIR . "/../home/cyg_server/.screen";
+chdir AGENT_RUN_DIR;
+
 my $ownerShipAgentResults = take_ownership(AGENT_RUN_DIR);
 my $ownerShipAgentResults2 = take_ownership(AGENT_RUN_DIR . "/ogp_agent.pl");
-my $ogpFilesEntirePath = AGENT_RUN_DIR . "/../bin/ogp_agent";
-my $ownerShipAgentResultsFixesAgain = take_ownership($ogpFilesEntirePath);
+my $ownerShipAgentResults3 = take_ownership(AGENT_RUN_DIR . "/../bin/ogp_agent");	
 
 logger "User running agent script is: " . USER_RUNNING_SCRIPT;
 
@@ -277,6 +282,8 @@ elsif ($no_startups != 1)
 	}
 	closedir(STARTUPDIR);
 }
+
+chdir AGENT_RUN_DIR;
 
 # Create the pid file
 open(PID, '>', AGENT_PID_FILE)
@@ -700,6 +707,12 @@ sub is_screen_running_without_decrypt
 	my $screen_id = create_screen_id($screen_type, $home_id);
 
 	my $is_running = `screen -list | grep $screen_id`;
+	
+	# One more check (happens if exactly one and only one screen session is running)
+	if ($is_running =~ /^\s*$/)
+	{
+		$is_running = `ls -A /home/cyg_server/.screen | grep $screen_id`;
+	}
 
 	if ($is_running =~ /^\s*$/)
 	{
