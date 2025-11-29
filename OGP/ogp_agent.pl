@@ -97,6 +97,9 @@ my $no_startups	= 0;
 my $clear_startups = 0;
 our $log_std_out = 0;
 
+# Fix permissions on OGP files
+my $ownerShipAgentResults = take_ownership(AGENT_RUN_DIR);
+
 GetOptions(
 		   'no-startups'	=> \$no_startups,
 		   'clear-startups' => \$clear_startups,
