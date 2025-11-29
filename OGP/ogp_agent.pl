@@ -179,10 +179,10 @@ if (-e AGENT_LOG_FILE)
 }
 
 # Fix permissions on OGP files
-my $screenDir = AGENT_RUN_DIR . "/../home/cyg_server/.screen";
+my $screenDir = AGENT_RUN_DIR . "/../home/" . USER_RUNNING_SCRIPT . "/.screen";
 check_b4_chdir($screenDir);
 take_ownership($screenDir);
-chmod 0700, AGENT_RUN_DIR . "/../home/cyg_server/.screen";
+chmod 0700, AGENT_RUN_DIR . "/../home/" . USER_RUNNING_SCRIPT . "/.screen";
 chdir AGENT_RUN_DIR;
 
 my $ownerShipAgentResults = take_ownership(AGENT_RUN_DIR);
@@ -711,7 +711,8 @@ sub is_screen_running_without_decrypt
 	# One more check (happens if exactly one and only one screen session is running)
 	if ($is_running =~ /^\s*$/)
 	{
-		$is_running = `ls -A /home/cyg_server/.screen | grep $screen_id`;
+		my $isRunComm = "ls -A /home/" . USER_RUNNING_SCRIPT . "/.screen | grep " . $screen_id;
+		$is_running = `$isRunComm`;
 	}
 
 	if ($is_running =~ /^\s*$/)
@@ -1175,7 +1176,7 @@ sub stop_server_without_decrypt
 	# One more check (happens if exactly one and only one screen session is running)
 	if ($screen_pid =~ /^\s*$/)
 	{
-		$get_screen_pid = "ls -A /home/cyg_server/.screen | grep $screen_id | cut -f1 -d'.' | sed '".'s/\W//g'."' | head -1";
+		$get_screen_pid = "ls -A /home/" . USER_RUNNING_SCRIPT . "/.screen | grep $screen_id | cut -f1 -d'.' | sed '".'s/\W//g'."' | head -1";
 		$screen_pid = `$get_screen_pid`;
 		chomp $screen_pid;
 	}
