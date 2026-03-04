@@ -3325,13 +3325,15 @@ sub take_ownership
 
     # Get the Windows path once - icacls/takeown prefer Windows native paths
     my $win_path = `cygpath -wa "$home_path"`;
-    $win_path =~ s/\s+$//;  # Clean trailing whitespace
+    chomp($win_path);              # Removes the newline from the back
+    $win_path =~ s/\r$//;          # Removes potential Windows carriage return
+    $win_path =~ s/^\s+|\s+$//g;   # Trims any leading/trailing whitespace
 
     logger "Running takeown commands on path of $home_path and $win_path";
 
     # 1. Take Ownership (Recursive)
     # Use /d Y to prevent the script from hanging on "Do you want to replace permissions?" prompts
-    my $cmd_take = "takeown /f \"$win_path\" /r /d Y >nul 2>&1";
+    my $cmd_take = "takeown /S localhost /f \"$win_path\" /r /d Y >nul 2>&1";
 
     # 2. Grant Permissions (Recursive)
     # We combine the User and Administrators grant into ONE command string.
