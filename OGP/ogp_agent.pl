@@ -1955,7 +1955,7 @@ sub start_rsync_install
 	
 	# Fix permissions
 	my $ownerShipResults = take_ownership($home_path, "str");
-	if (defined $ownerShipResults && $ownerShipResults !~ /^[01]$/ && $ownerShipResults ne "")
+	if (defined $ownerShipResults && $ownerShipResults !~ /^[01]$/ && $ownerShipResults ne "") {
 		$postcmd .= "\n" . $ownerShipResults;
 	}			   
 	
@@ -2110,7 +2110,7 @@ sub steam_cmd_without_decrypt
 	
 	# Fix permissions 
 	my $ownerShipResults = take_ownership($home_path, "str");
-	if (defined $ownerShipResults && $ownerShipResults !~ /^[01]$/ && $ownerShipResults ne "")
+	if (defined $ownerShipResults && $ownerShipResults !~ /^[01]$/ && $ownerShipResults ne "") {
 		$postcmd_mod .= "\n" . $ownerShipResults;
 	}
 	
