@@ -3258,7 +3258,8 @@ sub stop_fastdl_without_decrypt
 	}
 }
 
-sub take_ownership{
+sub take_ownership_original 
+{
 	# Looks like this is required to make sure that permissions are correct...
 	my ($home_path, $action) = @_;
 	
@@ -3314,6 +3315,39 @@ sub take_ownership{
 	}
 	
 	return 1;
+}
+
+sub take_ownership 
+{
+    my ($home_path, $action) = @_;
+    
+    return 0 unless (defined $home_path && -e $home_path);
+
+    # Get the Windows path once - icacls/takeown prefer Windows native paths
+    my $win_path = `cygpath -wa "$home_path"`;
+    $win_path =~ s/\s+$//;  # Clean trailing whitespace
+
+    logger "Running takeown commands on path of $home_path and $win_path";
+
+    # 1. Take Ownership (Recursive)
+    # Use /d Y to prevent the script from hanging on "Do you want to replace permissions?" prompts
+    my $cmd_take = "takeown /f \"$win_path\" /r /d Y >nul 2>&1";
+
+    # 2. Grant Permissions (Recursive)
+    # We combine the User and Administrators grant into ONE command string.
+    # (OI)(CI)F = Object Inherit, Container Inherit, Full Control.
+    # /T = Recursive, /C = Continue on error (prevents one locked file from stopping the whole job)
+    my $user = USER_RUNNING_SCRIPT;
+    my $cmd_icacls = "icacls \"$win_path\" /grant:r $user:(OI)(CI)F /grant:r *S-1-5-32-544:(OI)(CI)F /T /C /Q >nul 2>&1";
+
+    if (defined $action && $action eq "str") {
+        return "$cmd_take\n$cmd_icacls\n";
+    } else {
+        # Execution is faster because we only crawl the file tree twice total
+        system($cmd_take);
+        system($cmd_icacls);
+        return 1;
+    }
 }
 
 sub clean {
