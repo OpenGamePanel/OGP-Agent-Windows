@@ -3328,18 +3328,20 @@ sub take_ownership
     chomp($win_path);              # Removes the newline from the back
     $win_path =~ s/\r$//;          # Removes potential Windows carriage return
     $win_path =~ s/^\s+|\s+$//g;   # Trims any leading/trailing whitespace
+    
+    my $user = USER_RUNNING_SCRIPT;
 
     logger "Running takeown commands on path of $home_path and $win_path";
 
     # 1. Take Ownership (Recursive)
     # Use /d Y to prevent the script from hanging on "Do you want to replace permissions?" prompts
-    my $cmd_take = "takeown /S localhost /f \"$win_path\" /r /d Y >nul 2>&1";
+    my $cmd_take = "icacls \"$win_path\" /setowner $user /T /C /Q >nul 2>&1";
 
     # 2. Grant Permissions (Recursive)
     # We combine the User and Administrators grant into ONE command string.
     # (OI)(CI)F = Object Inherit, Container Inherit, Full Control.
     # /T = Recursive, /C = Continue on error (prevents one locked file from stopping the whole job)
-    my $user = USER_RUNNING_SCRIPT;
+    
     my $cmd_icacls = "icacls \"$win_path\" /grant:r $user:(OI)(CI)F /grant:r *S-1-5-32-544:(OI)(CI)F /T /C /Q >nul 2>&1";
 
     if (defined $action && $action eq "str") {
