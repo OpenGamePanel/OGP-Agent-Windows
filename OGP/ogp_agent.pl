@@ -3342,7 +3342,7 @@ sub take_ownership
     # (OI)(CI)F = Object Inherit, Container Inherit, Full Control.
     # /T = Recursive, /C = Continue on error (prevents one locked file from stopping the whole job)
     
-    my $cmd_icacls = "icacls \"$win_path\" /grant:r $user:(OI)(CI)F /grant:r *S-1-5-32-544:(OI)(CI)F /T /C /Q >nul 2>&1";
+    my $cmd_icacls = "icacls \"$win_path\" /grant:r \"$user\":\\(OI\\)\\(CI\\)F /grant:r \\*S-1-5-32-544:\\(OI\\)\\(CI\\)F /T /C /Q >nul 2>&1";
 
     if (defined $action && $action eq "str") {
         return "$cmd_take\n$cmd_icacls\n";
